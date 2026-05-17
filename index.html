@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Electrotecnia — Prof. [Tu Nombre]</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --primary: #1a56db;
+      --primary-dark: #1e429f;
+      --primary-light: #e8f0fe;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --dark: #111827;
+      --gray-100: #f9fafb;
+      --gray-200: #f3f4f6;
+      --gray-300: #e5e7eb;
+      --gray-500: #6b7280;
+      --gray-700: #374151;
+      --white: #ffffff;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -4px rgba(0,0,0,.1);
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--gray-100);
+      color: var(--dark);
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    nav {
+      background: var(--white);
+      border-bottom: 1px solid var(--gray-300);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+    .nav-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--dark);
+    }
+    .nav-brand .logo-icon {
+      width: 40px; height: 40px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px;
+    }
+    .nav-brand h1 { font-size: 17px; font-weight: 700; line-height: 1.2; }
+    .nav-brand span { font-size: 12px; color: var(--gray-500); font-weight: 400; }
+    .nav-actions { display: flex; gap: 10px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 18px; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; border: none; transition: all .2s;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+    .btn-outline:hover { background: var(--primary-light); }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+    .btn-ghost { background: transparent; color: var(--gray-700); }
+    .btn-ghost:hover { background: var(--gray-200); }
+
+    /* ── PAGES ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 60%, #0f3460 100%);
+      color: white;
+      padding: 64px 24px;
+      text-align: center;
+    }
+    .hero h2 { font-size: 36px; font-weight: 700; margin-bottom: 12px; }
+    .hero p { font-size: 18px; opacity: .85; max-width: 600px; margin: 0 auto 32px; }
+    .hero-badges { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+    .badge {
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 999px;
+      padding: 6px 16px; font-size: 13px;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── MAIN CONTENT ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+
+    .section-title {
+      font-size: 22px; font-weight: 700; margin-bottom: 8px;
+    }
+    .section-sub { color: var(--gray-500); margin-bottom: 32px; font-size: 15px; }
+
+    /* ── UNITS GRID ── */
+    .units-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 24px;
+    }
+    .unit-card {
+      background: var(--white);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .unit-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .unit-header {
+      padding: 20px 24px 0;
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .unit-num {
+      min-width: 42px; height: 42px;
+      background: var(--primary-light);
+      color: var(--primary);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 15px;
+    }
+    .unit-header h3 { font-size: 16px; font-weight: 600; line-height: 1.4; }
+    .unit-header p { font-size: 13px; color: var(--gray-500); margin-top: 3px; }
+    .unit-body { padding: 16px 24px; }
+    .unit-body ul { padding-left: 18px; color: var(--gray-700); font-size: 14px; line-height: 1.9; }
+    .unit-footer {
+      padding: 14px 24px;
+      border-top: 1px solid var(--gray-200);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .unit-tag {
+      font-size: 12px; background: var(--gray-200); color: var(--gray-500);
+      padding: 3px 10px; border-radius: 999px;
+    }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.5);
+      z-index: 200;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: white; border-radius: var(--radius);
+      width: 100%; max-width: 460px;
+      box-shadow: var(--shadow-lg);
+      animation: slideUp .25s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-header {
+      padding: 24px 28px 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .modal-header h3 { font-size: 20px; font-weight: 700; }
+    .modal-close {
+      background: none; border: none; font-size: 20px;
+      cursor: pointer; color: var(--gray-500); padding: 4px;
+    }
+    .modal-body { padding: 20px 28px 28px; }
+    .form-group { margin-bottom: 18px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--gray-700); }
+    .form-control {
+      width: 100%; padding: 10px 14px;
+      border: 1.5px solid var(--gray-300); border-radius: 8px;
+      font-size: 14px; font-family: inherit;
+      transition: border-color .2s;
+    }
+    .form-control:focus { outline: none; border-color: var(--primary); }
+    .form-hint { font-size: 12px; color: var(--gray-500); margin-top: 5px; }
+    .alert {
+      padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-bottom: 16px;
+    }
+    .alert-success { background: #d1fae5; color: #065f46; }
+    .alert-danger { background: #fee2e2; color: #991b1b; }
+    .alert-info { background: var(--primary-light); color: var(--primary-dark); }
+
+    /* ── UNIT DETAIL MODAL ── */
+    .modal-xl { max-width: 820px; }
+    .unit-content-body {
+      max-height: 60vh; overflow-y: auto;
+      padding: 0 28px 28px;
+      line-height: 1.75; font-size: 15px;
+    }
+    .unit-content-body h4 { font-size: 17px; font-weight: 700; margin: 24px 0 10px; color: var(--primary-dark); }
+    .unit-content-body p { margin-bottom: 12px; color: var(--gray-700); }
+    .unit-content-body ul, .unit-content-body ol {
+      padding-left: 22px; margin-bottom: 14px; color: var(--gray-700);
+    }
+    .unit-content-body li { margin-bottom: 6px; }
+    .unit-content-body .formula {
+      background: var(--gray-100); border-left: 4px solid var(--primary);
+      padding: 14px 18px; margin: 16px 0; border-radius: 0 8px 8px 0;
+      font-family: 'Courier New', monospace; font-size: 15px;
+    }
+    .unit-content-body .nota {
+      background: #fffbeb; border: 1px solid #fde68a;
+      padding: 12px 16px; border-radius: 8px; margin: 14px 0; font-size: 14px;
+    }
+
+    /* ── PROFILE / DASHBOARD ── */
+    .dashboard-header {
+      background: var(--white); border-bottom: 1px solid var(--gray-300);
+      padding: 24px;
+    }
+    .dashboard-header .inner {
+      max-width: 1200px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .user-avatar {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--primary); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; font-weight: 700;
+    }
+    .user-info { margin-left: 14px; }
+    .user-info h4 { font-size: 16px; font-weight: 600; }
+    .user-info span { font-size: 13px; color: var(--gray-500); }
+
+    /* ── ADMIN TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { background: var(--gray-100); font-weight: 600; text-align: left; padding: 12px 16px; border-bottom: 2px solid var(--gray-300); }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--gray-200); }
+    tr:hover td { background: var(--gray-100); }
+    .score-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    }
+    .score-high { background: #d1fae5; color: #065f46; }
+    .score-mid { background: #fef3c7; color: #92400e; }
+    .score-low { background: #fee2e2; color: #991b1b; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px;
+      background: var(--dark); color: white;
+      padding: 14px 22px; border-radius: 10px;
+      font-size: 14px; font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(80px); opacity: 0;
+      transition: all .3s; z-index: 999;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+
+    /* ── TABS ── */
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--gray-300); margin-bottom: 28px; }
+    .tab-btn {
+      padding: 10px 20px; font-size: 14px; font-weight: 600;
+      background: none; border: none; cursor: pointer; color: var(--gray-500);
+      border-bottom: 3px solid transparent; margin-bottom: -2px;
+      transition: all .2s;
+    }
+    .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── CARDS STAT ── */
+    .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; margin-bottom: 32px; }
+    .stat-card { background: white; border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+    .stat-card .num { font-size: 32px; font-weight: 700; color: var(--primary); }
+    .stat-card .label { font-size: 13px; color: var(--gray-500); margin-top: 4px; }
+
+    /* responsive */
+    @media (max-width: 640px) {
+      .hero h2 { font-size: 26px; }
+      .units-grid { grid-template-columns: 1fr; }
+      .nav-brand h1 { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ──────────── NAV ──────────── -->
+<nav>
+  <div class="nav-inner">
+    <a class="nav-brand" href="#" onclick="showPage('home')">
+      <div class="logo-icon"><i class="fas fa-bolt"></i></div>
+      <div>
+        <h1>Electrotecnia</h1>
+        <span>Plataforma Educativa</span>
+      </div>
+    </a>
+    <div class="nav-actions" id="navActions">
+      <button class="btn btn-outline btn-sm" onclick="openModal('modalLogin')">
+        <i class="fas fa-sign-in-alt"></i> Ingresar
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modalRegister')">
+        <i class="fas fa-user-plus"></i> Registrarse
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ──────────── PAGE: HOME ──────────── -->
+<div id="pageHome" class="page active">
+  <!-- Hero -->
+  <div class="hero">
+    <h2>Electrotecnia</h2>
+    <p>Material teórico, ejercicios y evaluaciones para el ciclo lectivo 2026</p>
+    <div class="hero-badges">
+      <span class="badge"><i class="fas fa-book-open"></i> 6 Unidades</span>
+      <span class="badge"><i class="fas fa-file-pdf"></i> PDFs descargables</span>
+      <span class="badge"><i class="fas fa-clipboard-check"></i> Evaluaciones online</span>
+    </div>
+  </div>
+
+  <!-- Units -->
+  <div class="container">
+    <p class="section-title">Contenido de la materia</p>
+    <p class="section-sub">Accedé al material teórico de cada unidad. Iniciá sesión para rendir evaluaciones y ver tu progreso.</p>
+    <div class="units-grid" id="unitsGrid">
+      <!-- units rendered by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── PAGE: STUDENT DASHBOARD ──────────── -->
+<div id="pageStudent" class="page">
+  <div class="dashboard-header">
+    <div class="inner">
+      <div style="display:flex;align-items:center">
+        <div class="user-avatar" id="studentAvatar">A</div>
+        <div class="user-info">
+          <h4 id="studentName">Alumno</h4>
+          <span id="studentDni">DNI: —</span>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('tabContent','tabContent')">Material</button>
+      <button class="tab-btn" onclick="switchTab('tabContent','tabExams')">Mis evaluaciones</button>
+    </div>
+    <div id="tabContent" class="tab-panel active">
+      <p class="section-title">Material de estudio</p>
+      <p class="section-sub">El mismo contenido de la página pública, más acceso a evaluaciones.</p>
+      <div class="units-grid" id="unitsGridStudent"></div>
+    </div>
+    <div id="tabExams" class="tab-panel">
+      <p class="section-title">Mis evaluaciones</p>
+      <p id="examEmpty" class="section-sub">Todavía no rendiste ninguna evaluación.</p>
+      <div id="examResults"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── PAGE: ADMIN DASHBOARD ──────────── -->
+<div id="pageAdmin" class="page">
+  <div class="dashboard-header">
+    <div class="inner">
+      <div style="display:flex;align-items:center">
+        <div class="user-avatar" style="background:#7c3aed"><i class="fas fa-shield-alt" style="font-size:18px"></i></div>
+        <div class="user-info">
+          <h4>Panel de Administración</h4>
+          <span>Profesor / Admin</span>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="logout()"><i class="fas fa-sign-out-alt"></i> Cerrar sesión</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('tabAdmin','tabAdminStudents')">Alumnos</button>
+      <button class="tab-btn" onclick="switchTab('tabAdmin','tabAdminContent')">Contenido</button>
+      <button class="tab-btn" onclick="switchTab('tabAdmin','tabAdminNotif')">Notificaciones</button>
+    </div>
+
+    <!-- ALUMNOS -->
+    <div id="tabAdminStudents" class="tab-panel active">
+      <div class="stats-row" id="adminStats"></div>
+      <div class="table-wrap">
+        <table id="studentsTable">
+          <thead>
+            <tr>
+              <th>Nombre completo</th>
+              <th>Email</th>
+              <th>DNI</th>
+              <th>Registro</th>
+              <th>Prom. exámenes</th>
+            </tr>
+          </thead>
+          <tbody id="studentsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CONTENIDO -->
+    <div id="tabAdminContent" class="tab-panel">
+      <p class="section-title">Gestión de unidades</p>
+      <p class="section-sub">Editá el contenido de cada unidad directamente desde aquí.</p>
+      <div id="adminUnitsEdit"></div>
+    </div>
+
+    <!-- NOTIFICACIONES -->
+    <div id="tabAdminNotif" class="tab-panel">
+      <p class="section-title">Enviar notificación</p>
+      <div style="max-width:560px">
+        <div class="form-group">
+          <label>Destinatarios</label>
+          <select class="form-control" id="notifTarget">
+            <option value="all">Todos los alumnos</option>
+            <option value="one">Un alumno específico</option>
+          </select>
+        </div>
+        <div class="form-group" id="notifStudentRow" style="display:none">
+          <label>Seleccionar alumno</label>
+          <select class="form-control" id="notifStudent"></select>
+        </div>
+        <div class="form-group">
+          <label>Canal</label>
+          <select class="form-control" id="notifChannel">
+            <option value="email">Email (mailto)</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="telegram">Telegram</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Asunto</label>
+          <input class="form-control" id="notifSubject" placeholder="Ej: Recordatorio de examen" />
+        </div>
+        <div class="form-group">
+          <label>Mensaje</label>
+          <textarea class="form-control" id="notifMessage" rows="5" placeholder="Escribí el mensaje aquí..."></textarea>
+        </div>
+        <button class="btn btn-primary" onclick="sendNotification()"><i class="fas fa-paper-plane"></i> Enviar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── MODAL: LOGIN ──────────── -->
+<div class="modal-overlay" id="modalLogin">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-sign-in-alt" style="color:var(--primary)"></i> Iniciar sesión</h3>
+      <button class="modal-close" onclick="closeModal('modalLogin')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="loginAlert"></div>
+      <div class="form-group">
+        <label>DNI (usuario y contraseña)</label>
+        <input class="form-control" id="loginDni" type="text" placeholder="Ingresá tu DNI" />
+        <p class="form-hint">Tu DNI funciona como usuario y como contraseña.</p>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="doLogin()">
+        <i class="fas fa-sign-in-alt"></i> Ingresar
+      </button>
+      <p style="text-align:center;margin-top:18px;font-size:13px;color:var(--gray-500)">
+        ¿No tenés cuenta?
+        <a href="#" onclick="closeModal('modalLogin');openModal('modalRegister')" style="color:var(--primary);font-weight:600">Registrate</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── MODAL: REGISTER ──────────── -->
+<div class="modal-overlay" id="modalRegister">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-user-plus" style="color:var(--primary)"></i> Crear cuenta</h3>
+      <button class="modal-close" onclick="closeModal('modalRegister')">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="registerAlert"></div>
+      <div class="form-group">
+        <label>Nombre completo</label>
+        <input class="form-control" id="regName" type="text" placeholder="Ej: Juan Pablo García" />
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-control" id="regEmail" type="email" placeholder="tucorreo@ejemplo.com" />
+      </div>
+      <div class="form-group">
+        <label>DNI</label>
+        <input class="form-control" id="regDni" type="text" placeholder="Sin puntos ni espacios" />
+        <p class="form-hint">Tu DNI será tu usuario y contraseña de acceso.</p>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="doRegister()">
+        <i class="fas fa-user-plus"></i> Registrarse
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── MODAL: UNIT DETAIL ──────────── -->
+<div class="modal-overlay" id="modalUnit">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h3 id="modalUnitTitle">Unidad</h3>
+      <button class="modal-close" onclick="closeModal('modalUnit')">×</button>
+    </div>
+    <div class="unit-content-body" id="modalUnitBody"></div>
+    <div style="padding:16px 28px;border-top:1px solid var(--gray-200);display:flex;gap:10px">
+      <button class="btn btn-primary btn-sm" onclick="downloadUnitPDF()">
+        <i class="fas fa-file-pdf"></i> Descargar PDF
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modalUnit')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── MODAL: EDIT UNIT ──────────── -->
+<div class="modal-overlay" id="modalEditUnit">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h3 id="editUnitTitle"><i class="fas fa-edit" style="color:var(--primary)"></i> Editar unidad</h3>
+      <button class="modal-close" onclick="closeModal('modalEditUnit')">×</button>
+    </div>
+    <div class="modal-body" style="padding-top:12px">
+      <div id="editUnitAlert"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <div class="form-group" style="margin:0">
+          <label>Título de la unidad</label>
+          <input class="form-control" id="editTitle" placeholder="Ej: Circuito Eléctrico..." />
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Etiqueta (tag)</label>
+          <input class="form-control" id="editTag" placeholder="Ej: Fundamentos" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Temas (uno por línea)</label>
+        <textarea class="form-control" id="editTopics" rows="3" placeholder="Corriente eléctrica&#10;Tensión&#10;Ley de Ohm"></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:8px">
+        <label>Contenido (HTML)</label>
+        <p class="form-hint" style="margin-bottom:6px">
+          Usá: <code>&lt;h4&gt;</code> subtítulos · <code>&lt;p&gt;</code> párrafos · <code>&lt;ul&gt;&lt;li&gt;</code> listas ·
+          <code>&lt;div class="formula"&gt;</code> fórmulas · <code>&lt;div class="nota"&gt;</code> notas
+        </p>
+        <textarea class="form-control" id="editContent" rows="16"
+          style="font-family:monospace;font-size:13px;line-height:1.6"></textarea>
+      </div>
+
+      <!-- Preview -->
+      <details style="margin-bottom:16px">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary);margin-bottom:8px">
+          <i class="fas fa-eye"></i> Vista previa del contenido
+        </summary>
+        <div id="editPreview"
+          class="unit-content-body"
+          style="max-height:300px;border:1px solid var(--gray-300);border-radius:8px;padding:16px 20px;background:white">
+        </div>
+      </details>
+
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary" onclick="saveUnit()">
+          <i class="fas fa-save"></i> Guardar cambios
+        </button>
+        <button class="btn btn-ghost" onclick="refreshEditPreview()">
+          <i class="fas fa-eye"></i> Actualizar vista previa
+        </button>
+        <button class="btn btn-ghost" onclick="closeModal('modalEditUnit')">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── TOAST ──────────── -->
+<div id="toast"></div>
+
+<!-- ──────────── CONFIG ──────────── -->
+<script src="config.js"></script>
+
+<!-- ──────────── APP ──────────── -->
+<script src="app.js"></script>
+
+</body>
+</html>
