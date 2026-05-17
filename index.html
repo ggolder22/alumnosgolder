@@ -584,14 +584,22 @@
 
 <!-- ──────────── MODAL: UNIT DETAIL ──────────── -->
 <div class="modal-overlay" id="modalUnit">
-  <div class="modal modal-xl">
-    <div class="modal-header">
+  <div class="modal modal-xl" style="max-width:900px;height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
       <h3 id="modalUnitTitle">Unidad</h3>
       <button class="modal-close" onclick="closeModal('modalUnit')">×</button>
     </div>
-    <div class="unit-content-body" id="modalUnitBody"></div>
-    <div style="padding:16px 28px;border-top:1px solid var(--gray-200);display:flex;gap:10px">
-      <button class="btn btn-primary btn-sm" onclick="downloadUnitPDF()">
+    <!-- Visor PDF -->
+    <div id="modalUnitPdf" style="flex:1;display:none;padding:0 4px">
+      <iframe id="pdfIframe" src="" style="width:100%;height:100%;border:none;border-radius:8px"></iframe>
+    </div>
+    <!-- Contenido HTML (fallback si no hay PDF) -->
+    <div class="unit-content-body" id="modalUnitBody" style="flex:1;overflow-y:auto"></div>
+    <div style="padding:14px 28px;border-top:1px solid var(--gray-200);display:flex;gap:10px;flex-shrink:0">
+      <a id="btnDownloadPdf" class="btn btn-primary btn-sm" href="#" target="_blank" download style="display:none">
+        <i class="fas fa-file-pdf"></i> Descargar PDF
+      </a>
+      <button id="btnDownloadGen" class="btn btn-outline btn-sm" onclick="downloadUnitPDF()" style="display:none">
         <i class="fas fa-file-pdf"></i> Descargar PDF
       </button>
       <button class="btn btn-ghost btn-sm" onclick="closeModal('modalUnit')">Cerrar</button>
@@ -630,51 +638,39 @@
           placeholder="Corriente eléctrica&#10;Tensión (D.D.P.)&#10;Resistencia eléctrica&#10;Ley de Ohm"></textarea>
       </div>
 
-      <!-- Upload Word -->
+      <!-- Upload PDF -->
       <div class="form-group" style="background:var(--gray-100);border:2px dashed var(--gray-300);border-radius:10px;padding:16px">
-        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <i class="fas fa-file-word" style="color:#2b579a;font-size:18px"></i>
-          Importar desde Word (.docx)
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <i class="fas fa-file-pdf" style="color:#ef4444;font-size:20px"></i>
+          <strong>Subir PDF de la unidad</strong>
         </label>
         <p class="form-hint" style="margin-bottom:10px">
-          Subí el archivo Word de la unidad y el contenido se va a cargar automáticamente en el editor.
+          El PDF se muestra tal cual dentro de la app — formato, imágenes y esquemas perfectos.
+          Podés exportar el Word como PDF desde <strong>Archivo → Guardar como → PDF</strong>.
         </p>
-        <input type="file" id="wordFile" accept=".docx"
-          style="font-size:13px" onchange="importWord()" />
-        <div id="wordStatus" style="margin-top:8px;font-size:13px"></div>
+        <div id="currentPdfInfo" style="margin-bottom:10px;display:none">
+          <span style="font-size:13px;color:var(--success)"><i class="fas fa-check-circle"></i> PDF cargado</span>
+          &nbsp;
+          <a id="currentPdfLink" href="#" target="_blank" style="font-size:13px;color:var(--primary)">Ver PDF actual</a>
+        </div>
+        <input type="file" id="pdfFile" accept=".pdf" style="font-size:13px" />
+        <div id="pdfUploadStatus" style="margin-top:10px;font-size:13px"></div>
       </div>
 
       <div class="form-group" style="margin-bottom:8px">
-        <label style="display:flex;justify-content:space-between;align-items:center">
-          <span>Contenido</span>
-          <span style="font-size:11px;color:var(--gray-500);font-weight:400">
-            Se puede editar el texto importado desde Word
-          </span>
+        <label style="display:flex;justify-content:space-between">
+          <span>Descripción breve <span style="font-weight:400;color:var(--gray-500)">(opcional — se muestra en la tarjeta)</span></span>
         </label>
-        <textarea class="form-control" id="editContent" rows="16"
-          style="font-family:monospace;font-size:13px;line-height:1.6"
-          placeholder="El contenido aparecerá aquí al importar el Word, o podés escribirlo directamente..."></textarea>
+        <textarea class="form-control" id="editContent" rows="4"
+          style="font-size:14px;line-height:1.6"
+          placeholder="Breve descripción de los temas que cubre esta unidad..."></textarea>
       </div>
 
-      <!-- Preview -->
-      <details style="margin-bottom:16px">
-        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary);margin-bottom:8px">
-          <i class="fas fa-eye"></i> Vista previa
-        </summary>
-        <div id="editPreview"
-          class="unit-content-body"
-          style="max-height:300px;border:1px solid var(--gray-300);border-radius:8px;padding:16px 20px;background:white">
-        </div>
-      </details>
-
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-primary" onclick="saveUnit()">
           <i class="fas fa-save"></i> Guardar unidad
         </button>
-        <button class="btn btn-ghost" onclick="refreshEditPreview()">
-          <i class="fas fa-eye"></i> Vista previa
-        </button>
-        <button class="btn btn-danger btn-sm" id="btnDeleteUnit" onclick="deleteUnit()" style="margin-left:auto">
+        <button class="btn btn-danger btn-sm" id="btnDeleteUnit" onclick="deleteUnit()" style="margin-left:auto;display:none">
           <i class="fas fa-trash"></i> Eliminar unidad
         </button>
         <button class="btn btn-ghost" onclick="closeModal('modalEditUnit')">Cancelar</button>

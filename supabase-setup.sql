@@ -68,6 +68,32 @@ CREATE POLICY "public read exams" ON exams FOR SELECT TO anon USING (true);
 CREATE POLICY "public insert results" ON exam_results FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "public read results"   ON exam_results FOR SELECT TO anon USING (true);
 
+-- ── STORAGE: bucket para PDFs de unidades ────────────────────
+-- Ejecutar en SQL Editor de Supabase:
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('unit-pdfs', 'unit-pdfs', true)
+ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "public read pdfs"
+  ON storage.objects FOR SELECT TO anon
+  USING (bucket_id = 'unit-pdfs');
+
+CREATE POLICY "admin upload pdfs"
+  ON storage.objects FOR INSERT TO anon
+  WITH CHECK (bucket_id = 'unit-pdfs');
+
+CREATE POLICY "admin update pdfs"
+  ON storage.objects FOR UPDATE TO anon
+  USING (bucket_id = 'unit-pdfs');
+
+CREATE POLICY "admin delete pdfs"
+  ON storage.objects FOR DELETE TO anon
+  USING (bucket_id = 'unit-pdfs');
+
+-- ── Agregar columna pdf_url a units (si ya existe la tabla) ──
+ALTER TABLE units ADD COLUMN IF NOT EXISTS pdf_url text;
+
 -- ── DATOS DE EJEMPLO ─────────────────────────────────────────
 -- Podés insertar un examen de prueba:
 -- INSERT INTO exams (title, unit_id) VALUES ('Evaluación Unidad 1 — Ley de Ohm', 1);

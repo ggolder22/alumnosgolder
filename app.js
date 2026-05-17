@@ -172,27 +172,36 @@ function updateNav() {
 function renderUnitsGrid(containerId) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  container.innerHTML = liveUnits.map(u => `
+  const sorted = [...liveUnits].sort((a, b) => a.id - b.id);
+  if (sorted.length === 0) {
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:48px;color:var(--gray-500)">
+      <i class="fas fa-book-open" style="font-size:40px;opacity:.3;display:block;margin-bottom:16px"></i>
+      El contenido estará disponible próximamente.
+    </div>`;
+    return;
+  }
+  container.innerHTML = sorted.map(u => `
     <div class="unit-card">
       <div class="unit-header">
         <div class="unit-num">U${u.id}</div>
         <div>
           <h3>${u.title}</h3>
-          <p>${u.topics.slice(0,2).join(' · ')}</p>
+          <p>${(u.topics || []).slice(0,2).join(' · ')}</p>
         </div>
       </div>
       <div class="unit-body">
-        <ul>${u.topics.map(t => `<li>${t}</li>`).join('')}</ul>
+        <ul>${(u.topics || []).map(t => `<li>${t}</li>`).join('')}</ul>
+        ${u.content ? `<p style="font-size:13px;color:var(--gray-500);margin-top:8px">${u.content.substring(0,120)}${u.content.length>120?'…':''}</p>` : ''}
       </div>
       <div class="unit-footer">
-        <span class="unit-tag">${u.tag}</span>
+        <span class="unit-tag">${u.tag || ''}</span>
         <div style="display:flex;gap:8px">
           <button class="btn btn-outline btn-sm" onclick="openUnit(${u.id})">
             <i class="fas fa-book-open"></i> Ver contenido
           </button>
-          <button class="btn btn-primary btn-sm" onclick="downloadUnitPDFById(${u.id})">
+          ${u.pdf_url ? `<a class="btn btn-primary btn-sm" href="${u.pdf_url}" target="_blank" download>
             <i class="fas fa-file-pdf"></i> PDF
-          </button>
+          </a>` : ''}
         </div>
       </div>
     </div>`).join('');
@@ -204,7 +213,29 @@ function openUnit(id) {
   if (!unit) return;
   currentUnitId = id;
   document.getElementById('modalUnitTitle').textContent = `Unidad ${unit.id} — ${unit.title}`;
-  document.getElementById('modalUnitBody').innerHTML = unit.content;
+
+  const pdfDiv  = document.getElementById('modalUnitPdf');
+  const bodyDiv = document.getElementById('modalUnitBody');
+  const btnDl   = document.getElementById('btnDownloadPdf');
+  const btnGen  = document.getElementById('btnDownloadGen');
+
+  if (unit.pdf_url) {
+    // Mostrar PDF en iframe
+    document.getElementById('pdfIframe').src = unit.pdf_url;
+    pdfDiv.style.display  = 'block';
+    bodyDiv.style.display = 'none';
+    btnDl.href            = unit.pdf_url;
+    btnDl.style.display   = 'inline-flex';
+    btnGen.style.display  = 'none';
+  } else {
+    // Fallback: mostrar contenido HTML
+    document.getElementById('pdfIframe').src = '';
+    pdfDiv.style.display  = 'none';
+    bodyDiv.style.display = 'block';
+    bodyDiv.innerHTML     = unit.content || '<p style="color:#9ca3af;padding:20px">Esta unidad todavía no tiene contenido.</p>';
+    btnDl.style.display   = 'none';
+    btnGen.style.display  = unit.content ? 'inline-flex' : 'none';
+  }
   openModal('modalUnit');
 }
 
@@ -457,20 +488,18 @@ function renderAdminUnitsEdit() {
 function newUnit() {
   currentUnitId = null;
   const nextId  = liveUnits.length > 0 ? Math.max(...liveUnits.map(u => u.id)) + 1 : 1;
-
   document.getElementById('editUnitTitle').innerHTML =
     `<i class="fas fa-plus" style="color:var(--primary)"></i> Nueva unidad`;
-  document.getElementById('editUnitId').value  = nextId;
-  document.getElementById('editTitle').value   = '';
-  document.getElementById('editTag').value     = '';
-  document.getElementById('editTopics').value  = '';
-  document.getElementById('editContent').value = '';
-  document.getElementById('editPreview').innerHTML = '';
+  document.getElementById('editUnitId').value      = nextId;
+  document.getElementById('editTitle').value        = '';
+  document.getElementById('editTag').value          = '';
+  document.getElementById('editTopics').value       = '';
+  document.getElementById('editContent').value      = '';
   document.getElementById('editUnitAlert').innerHTML = '';
-  document.getElementById('wordFile').value    = '';
-  document.getElementById('wordStatus').innerHTML = '';
-  document.getElementById('btnDeleteUnit').style.display = 'none';
-
+  document.getElementById('pdfFile').value          = '';
+  document.getElementById('pdfUploadStatus').innerHTML = '';
+  document.getElementById('currentPdfInfo').style.display = 'none';
+  document.getElementById('btnDeleteUnit').style.display  = 'none';
   openModal('modalEditUnit');
 }
 
@@ -478,59 +507,26 @@ function editUnit(id) {
   const unit = liveUnits.find(u => u.id === id);
   if (!unit) return;
   currentUnitId = id;
-
   document.getElementById('editUnitTitle').innerHTML =
     `<i class="fas fa-edit" style="color:var(--primary)"></i> Editar — Unidad ${unit.id}`;
-  document.getElementById('editUnitId').value   = unit.id;
-  document.getElementById('editTitle').value    = unit.title;
-  document.getElementById('editTag').value      = unit.tag || '';
-  document.getElementById('editTopics').value   = (unit.topics || []).join('\n');
-  document.getElementById('editContent').value  = (unit.content || '').trim();
-  document.getElementById('editPreview').innerHTML = unit.content || '';
+  document.getElementById('editUnitId').value       = unit.id;
+  document.getElementById('editTitle').value         = unit.title;
+  document.getElementById('editTag').value           = unit.tag || '';
+  document.getElementById('editTopics').value        = (unit.topics || []).join('\n');
+  document.getElementById('editContent').value       = (unit.content || '').trim();
   document.getElementById('editUnitAlert').innerHTML = '';
-  document.getElementById('wordFile').value     = '';
-  document.getElementById('wordStatus').innerHTML = '';
+  document.getElementById('pdfFile').value           = '';
+  document.getElementById('pdfUploadStatus').innerHTML = '';
   document.getElementById('btnDeleteUnit').style.display = 'inline-flex';
 
-  openModal('modalEditUnit');
-}
-
-async function importWord() {
-  const file = document.getElementById('wordFile').files[0];
-  if (!file) return;
-
-  const status = document.getElementById('wordStatus');
-  status.innerHTML = '<span style="color:#6b7280"><i class="fas fa-circle-notch fa-spin"></i> Procesando Word...</span>';
-
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const result = await mammoth.convertToHtml({ arrayBuffer });
-
-    // Limpiar HTML generado por mammoth y adaptarlo a nuestro formato
-    let html = result.value
-      .replace(/<h1>/g, '<h4>').replace(/<\/h1>/g, '</h4>')
-      .replace(/<h2>/g, '<h4>').replace(/<\/h2>/g, '</h4>')
-      .replace(/<h3>/g, '<h4>').replace(/<\/h3>/g, '</h4>')
-      .replace(/<strong><\/strong>/g, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    document.getElementById('editContent').value = html;
-    document.getElementById('editPreview').innerHTML = html;
-
-    const warnings = result.messages.length
-      ? `<br><span style="color:#92400e">Advertencias: ${result.messages.length} (imágenes o formatos no soportados ignorados)</span>`
-      : '';
-    status.innerHTML = `<span style="color:#10b981"><i class="fas fa-check-circle"></i> Importado correctamente.
-      Revisá el contenido y ajustá si es necesario.${warnings}</span>`;
-  } catch (e) {
-    status.innerHTML = `<span style="color:#ef4444"><i class="fas fa-times-circle"></i> Error al procesar el archivo: ${e.message}</span>`;
+  const pdfInfo = document.getElementById('currentPdfInfo');
+  if (unit.pdf_url) {
+    pdfInfo.style.display = 'block';
+    document.getElementById('currentPdfLink').href = unit.pdf_url;
+  } else {
+    pdfInfo.style.display = 'none';
   }
-}
-
-function refreshEditPreview() {
-  document.getElementById('editPreview').innerHTML =
-    document.getElementById('editContent').value;
+  openModal('modalEditUnit');
 }
 
 async function saveUnit() {
@@ -540,38 +536,53 @@ async function saveUnit() {
   const topics  = document.getElementById('editTopics').value
                     .split('\n').map(t => t.trim()).filter(Boolean);
   const content = document.getElementById('editContent').value.trim();
+  const pdfFile = document.getElementById('pdfFile').files[0];
 
-  if (!unitId || !title || !content) {
-    showAlert('editUnitAlert', 'N° de unidad, título y contenido son obligatorios.', 'danger');
+  if (!unitId || !title) {
+    showAlert('editUnitAlert', 'N° de unidad y título son obligatorios.', 'danger');
     return;
   }
 
-  // Si cambia el ID en edición, verificar que no exista otro con ese ID
-  if (currentUnitId && currentUnitId !== unitId) {
-    const exists = liveUnits.find(u => u.id === unitId);
-    if (exists) {
-      showAlert('editUnitAlert', `Ya existe la Unidad ${unitId}. Elegí otro número.`, 'danger');
+  // Subir PDF si se seleccionó uno
+  let pdf_url = liveUnits.find(u => u.id === unitId)?.pdf_url || null;
+  if (pdfFile) {
+    const statusEl = document.getElementById('pdfUploadStatus');
+    statusEl.innerHTML = '<span style="color:#6b7280"><i class="fas fa-circle-notch fa-spin"></i> Subiendo PDF...</span>';
+
+    const fileName = `unidad-${unitId}.pdf`;
+    const { error: upErr } = await db.storage
+      .from('unit-pdfs')
+      .upload(fileName, pdfFile, { upsert: true, contentType: 'application/pdf' });
+
+    if (upErr) {
+      statusEl.innerHTML = `<span style="color:#ef4444"><i class="fas fa-times-circle"></i> Error al subir PDF: ${upErr.message}</span>`;
       return;
     }
+    const { data: urlData } = db.storage.from('unit-pdfs').getPublicUrl(fileName);
+    pdf_url = urlData.publicUrl;
+    statusEl.innerHTML = `<span style="color:#10b981"><i class="fas fa-check-circle"></i> PDF subido correctamente.</span>`;
   }
 
-  const payload = { unit_id: unitId, title, tag, topics: JSON.stringify(topics), content, updated_at: new Date().toISOString() };
+  const payload = {
+    unit_id: unitId, title, tag,
+    topics:  JSON.stringify(topics),
+    content, pdf_url,
+    updated_at: new Date().toISOString(),
+  };
 
   const { error } = await db.from('units').upsert(payload, { onConflict: 'unit_id' });
-
   if (error) {
     showAlert('editUnitAlert', `Error al guardar: ${error.message}`, 'danger');
     return;
   }
 
-  // Si cambió el ID (edición con ID distinto), eliminar el viejo
   if (currentUnitId && currentUnitId !== unitId) {
     await db.from('units').delete().eq('unit_id', currentUnitId);
     liveUnits = liveUnits.filter(u => u.id !== currentUnitId);
   }
 
+  const updated = { id: unitId, title, tag, topics, content, pdf_url };
   const idx = liveUnits.findIndex(u => u.id === unitId);
-  const updated = { id: unitId, title, tag, topics, content };
   if (idx !== -1) liveUnits[idx] = updated;
   else liveUnits.push(updated);
 
