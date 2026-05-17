@@ -415,19 +415,51 @@ async function testSupabaseConnection() {
 }
 
 function renderAdminUnitsEdit() {
-  document.getElementById('adminUnitsEdit').innerHTML = liveUnits.map(u => `
-    <div style="background:white;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div>
-          <strong>Unidad ${u.id}: ${u.title}</strong>
-          <span class="unit-tag" style="margin-left:10px">${u.tag}</span>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="editUnit(${u.id})">
-          <i class="fas fa-edit"></i> Editar
-        </button>
+  const el = document.getElementById('adminUnitsEdit');
+  if (liveUnits.length === 0) {
+    el.innerHTML = `<div style="text-align:center;padding:48px;color:var(--gray-500)">
+      <i class="fas fa-folder-open" style="font-size:40px;margin-bottom:16px;display:block;opacity:.4"></i>
+      No hay unidades creadas todavía.<br>
+      <button class="btn btn-primary btn-sm" style="margin-top:16px" onclick="newUnit()">
+        <i class="fas fa-plus"></i> Crear primera unidad
+      </button>
+    </div>`;
+    return;
+  }
+  el.innerHTML = liveUnits
+    .sort((a, b) => a.id - b.id)
+    .map(u => `
+    <div style="background:white;border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <span style="font-size:13px;color:var(--primary);font-weight:700;margin-right:8px">U${u.id}</span>
+        <strong>${u.title}</strong>
+        <span class="unit-tag" style="margin-left:10px">${u.tag || ''}</span>
+        <p style="font-size:13px;color:#6b7280;margin-top:4px">${(u.topics || []).join(' · ')}</p>
       </div>
-      <p style="font-size:13px;color:#6b7280">${u.topics.join(' · ')}</p>
+      <button class="btn btn-outline btn-sm" onclick="editUnit(${u.id})">
+        <i class="fas fa-edit"></i> Editar
+      </button>
     </div>`).join('');
+}
+
+function newUnit() {
+  currentUnitId = null;
+  const nextId  = liveUnits.length > 0 ? Math.max(...liveUnits.map(u => u.id)) + 1 : 1;
+
+  document.getElementById('editUnitTitle').innerHTML =
+    `<i class="fas fa-plus" style="color:var(--primary)"></i> Nueva unidad`;
+  document.getElementById('editUnitId').value  = nextId;
+  document.getElementById('editTitle').value   = '';
+  document.getElementById('editTag').value     = '';
+  document.getElementById('editTopics').value  = '';
+  document.getElementById('editContent').value = '';
+  document.getElementById('editPreview').innerHTML = '';
+  document.getElementById('editUnitAlert').innerHTML = '';
+  document.getElementById('wordFile').value    = '';
+  document.getElementById('wordStatus').innerHTML = '';
+  document.getElementById('btnDeleteUnit').style.display = 'none';
+
+  openModal('modalEditUnit');
 }
 
 function editUnit(id) {
@@ -437,14 +469,51 @@ function editUnit(id) {
 
   document.getElementById('editUnitTitle').innerHTML =
     `<i class="fas fa-edit" style="color:var(--primary)"></i> Editar — Unidad ${unit.id}`;
-  document.getElementById('editTitle').value   = unit.title;
-  document.getElementById('editTag').value     = unit.tag;
-  document.getElementById('editTopics').value  = unit.topics.join('\n');
-  document.getElementById('editContent').value = unit.content.trim();
-  document.getElementById('editPreview').innerHTML = unit.content;
+  document.getElementById('editUnitId').value   = unit.id;
+  document.getElementById('editTitle').value    = unit.title;
+  document.getElementById('editTag').value      = unit.tag || '';
+  document.getElementById('editTopics').value   = (unit.topics || []).join('\n');
+  document.getElementById('editContent').value  = (unit.content || '').trim();
+  document.getElementById('editPreview').innerHTML = unit.content || '';
   document.getElementById('editUnitAlert').innerHTML = '';
+  document.getElementById('wordFile').value     = '';
+  document.getElementById('wordStatus').innerHTML = '';
+  document.getElementById('btnDeleteUnit').style.display = 'inline-flex';
 
   openModal('modalEditUnit');
+}
+
+async function importWord() {
+  const file = document.getElementById('wordFile').files[0];
+  if (!file) return;
+
+  const status = document.getElementById('wordStatus');
+  status.innerHTML = '<span style="color:#6b7280"><i class="fas fa-circle-notch fa-spin"></i> Procesando Word...</span>';
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+
+    // Limpiar HTML generado por mammoth y adaptarlo a nuestro formato
+    let html = result.value
+      .replace(/<h1>/g, '<h4>').replace(/<\/h1>/g, '</h4>')
+      .replace(/<h2>/g, '<h4>').replace(/<\/h2>/g, '</h4>')
+      .replace(/<h3>/g, '<h4>').replace(/<\/h3>/g, '</h4>')
+      .replace(/<strong><\/strong>/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    document.getElementById('editContent').value = html;
+    document.getElementById('editPreview').innerHTML = html;
+
+    const warnings = result.messages.length
+      ? `<br><span style="color:#92400e">Advertencias: ${result.messages.length} (imágenes o formatos no soportados ignorados)</span>`
+      : '';
+    status.innerHTML = `<span style="color:#10b981"><i class="fas fa-check-circle"></i> Importado correctamente.
+      Revisá el contenido y ajustá si es necesario.${warnings}</span>`;
+  } catch (e) {
+    status.innerHTML = `<span style="color:#ef4444"><i class="fas fa-times-circle"></i> Error al procesar el archivo: ${e.message}</span>`;
+  }
 }
 
 function refreshEditPreview() {
@@ -453,46 +522,67 @@ function refreshEditPreview() {
 }
 
 async function saveUnit() {
-  const id      = currentUnitId;
+  const unitId  = parseInt(document.getElementById('editUnitId').value);
   const title   = document.getElementById('editTitle').value.trim();
   const tag     = document.getElementById('editTag').value.trim();
   const topics  = document.getElementById('editTopics').value
                     .split('\n').map(t => t.trim()).filter(Boolean);
   const content = document.getElementById('editContent').value.trim();
 
-  if (!title || !content) {
-    showAlert('editUnitAlert', 'El título y el contenido son obligatorios.', 'danger');
+  if (!unitId || !title || !content) {
+    showAlert('editUnitAlert', 'N° de unidad, título y contenido son obligatorios.', 'danger');
     return;
   }
 
-  const payload = {
-    unit_id:    id,
-    title,
-    tag,
-    topics:     JSON.stringify(topics),
-    content,
-    updated_at: new Date().toISOString(),
-  };
+  // Si cambia el ID en edición, verificar que no exista otro con ese ID
+  if (currentUnitId && currentUnitId !== unitId) {
+    const exists = liveUnits.find(u => u.id === unitId);
+    if (exists) {
+      showAlert('editUnitAlert', `Ya existe la Unidad ${unitId}. Elegí otro número.`, 'danger');
+      return;
+    }
+  }
 
-  const { error } = await db
-    .from('units')
-    .upsert(payload, { onConflict: 'unit_id' });
+  const payload = { unit_id: unitId, title, tag, topics: JSON.stringify(topics), content, updated_at: new Date().toISOString() };
+
+  const { error } = await db.from('units').upsert(payload, { onConflict: 'unit_id' });
 
   if (error) {
-    showAlert('editUnitAlert',
-      `Error al guardar: ${error.message}. ¿Creaste la tabla units en Supabase?`, 'danger');
+    showAlert('editUnitAlert', `Error al guardar: ${error.message}`, 'danger');
     return;
   }
 
-  // Actualizar en memoria
-  const idx = liveUnits.findIndex(u => u.id === id);
-  if (idx !== -1) liveUnits[idx] = { id, title, tag, topics, content };
+  // Si cambió el ID (edición con ID distinto), eliminar el viejo
+  if (currentUnitId && currentUnitId !== unitId) {
+    await db.from('units').delete().eq('unit_id', currentUnitId);
+    liveUnits = liveUnits.filter(u => u.id !== currentUnitId);
+  }
+
+  const idx = liveUnits.findIndex(u => u.id === unitId);
+  const updated = { id: unitId, title, tag, topics, content };
+  if (idx !== -1) liveUnits[idx] = updated;
+  else liveUnits.push(updated);
 
   closeModal('modalEditUnit');
   renderUnitsGrid('unitsGrid');
   renderUnitsGrid('unitsGridStudent');
-  loadAdminData();
-  toast(`Unidad ${id} guardada correctamente.`);
+  renderAdminUnitsEdit();
+  toast(`Unidad ${unitId} guardada.`);
+}
+
+async function deleteUnit() {
+  if (!currentUnitId) return;
+  if (!confirm(`¿Seguro que querés eliminar la Unidad ${currentUnitId}? Esta acción no se puede deshacer.`)) return;
+
+  const { error } = await db.from('units').delete().eq('unit_id', currentUnitId);
+  if (error) { toast(`Error al eliminar: ${error.message}`); return; }
+
+  liveUnits = liveUnits.filter(u => u.id !== currentUnitId);
+  closeModal('modalEditUnit');
+  renderUnitsGrid('unitsGrid');
+  renderUnitsGrid('unitsGridStudent');
+  renderAdminUnitsEdit();
+  toast(`Unidad ${currentUnitId} eliminada.`);
 }
 
 // ── NOTIFICATIONS ─────────────────────────────────────────────

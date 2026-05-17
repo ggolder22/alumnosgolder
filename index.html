@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
   <style>
     :root {
       --primary: #1a56db;
@@ -422,8 +423,13 @@
 
     <!-- CONTENIDO -->
     <div id="tabAdminContent" class="tab-panel">
-      <p class="section-title">Gestión de unidades</p>
-      <p class="section-sub">Editá el contenido de cada unidad directamente desde aquí.</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <p class="section-title" style="margin:0">Gestión de unidades</p>
+        <button class="btn btn-primary btn-sm" onclick="newUnit()">
+          <i class="fas fa-plus"></i> Nueva unidad
+        </button>
+      </div>
+      <p class="section-sub">Creá unidades e importá el contenido desde Word o escribilo directamente.</p>
       <div id="adminUnitsEdit"></div>
     </div>
 
@@ -545,10 +551,14 @@
     <div class="modal-body" style="padding-top:12px">
       <div id="editUnitAlert"></div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:80px 1fr 160px;gap:16px;margin-bottom:16px">
+        <div class="form-group" style="margin:0">
+          <label>N° unidad</label>
+          <input class="form-control" id="editUnitId" type="number" min="1" max="99" placeholder="1" />
+        </div>
         <div class="form-group" style="margin:0">
           <label>Título de la unidad</label>
-          <input class="form-control" id="editTitle" placeholder="Ej: Circuito Eléctrico..." />
+          <input class="form-control" id="editTitle" placeholder="Ej: Circuito Eléctrico y Magnitudes Fundamentales" />
         </div>
         <div class="form-group" style="margin:0">
           <label>Etiqueta (tag)</label>
@@ -558,23 +568,40 @@
 
       <div class="form-group">
         <label>Temas (uno por línea)</label>
-        <textarea class="form-control" id="editTopics" rows="3" placeholder="Corriente eléctrica&#10;Tensión&#10;Ley de Ohm"></textarea>
+        <textarea class="form-control" id="editTopics" rows="3"
+          placeholder="Corriente eléctrica&#10;Tensión (D.D.P.)&#10;Resistencia eléctrica&#10;Ley de Ohm"></textarea>
+      </div>
+
+      <!-- Upload Word -->
+      <div class="form-group" style="background:var(--gray-100);border:2px dashed var(--gray-300);border-radius:10px;padding:16px">
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <i class="fas fa-file-word" style="color:#2b579a;font-size:18px"></i>
+          Importar desde Word (.docx)
+        </label>
+        <p class="form-hint" style="margin-bottom:10px">
+          Subí el archivo Word de la unidad y el contenido se va a cargar automáticamente en el editor.
+        </p>
+        <input type="file" id="wordFile" accept=".docx"
+          style="font-size:13px" onchange="importWord()" />
+        <div id="wordStatus" style="margin-top:8px;font-size:13px"></div>
       </div>
 
       <div class="form-group" style="margin-bottom:8px">
-        <label>Contenido (HTML)</label>
-        <p class="form-hint" style="margin-bottom:6px">
-          Usá: <code>&lt;h4&gt;</code> subtítulos · <code>&lt;p&gt;</code> párrafos · <code>&lt;ul&gt;&lt;li&gt;</code> listas ·
-          <code>&lt;div class="formula"&gt;</code> fórmulas · <code>&lt;div class="nota"&gt;</code> notas
-        </p>
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>Contenido</span>
+          <span style="font-size:11px;color:var(--gray-500);font-weight:400">
+            Se puede editar el texto importado desde Word
+          </span>
+        </label>
         <textarea class="form-control" id="editContent" rows="16"
-          style="font-family:monospace;font-size:13px;line-height:1.6"></textarea>
+          style="font-family:monospace;font-size:13px;line-height:1.6"
+          placeholder="El contenido aparecerá aquí al importar el Word, o podés escribirlo directamente..."></textarea>
       </div>
 
       <!-- Preview -->
       <details style="margin-bottom:16px">
         <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--primary);margin-bottom:8px">
-          <i class="fas fa-eye"></i> Vista previa del contenido
+          <i class="fas fa-eye"></i> Vista previa
         </summary>
         <div id="editPreview"
           class="unit-content-body"
@@ -582,12 +609,15 @@
         </div>
       </details>
 
-      <div style="display:flex;gap:10px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn btn-primary" onclick="saveUnit()">
-          <i class="fas fa-save"></i> Guardar cambios
+          <i class="fas fa-save"></i> Guardar unidad
         </button>
         <button class="btn btn-ghost" onclick="refreshEditPreview()">
-          <i class="fas fa-eye"></i> Actualizar vista previa
+          <i class="fas fa-eye"></i> Vista previa
+        </button>
+        <button class="btn btn-danger btn-sm" id="btnDeleteUnit" onclick="deleteUnit()" style="margin-left:auto">
+          <i class="fas fa-trash"></i> Eliminar unidad
         </button>
         <button class="btn btn-ghost" onclick="closeModal('modalEditUnit')">Cancelar</button>
       </div>
