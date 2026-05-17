@@ -27,9 +27,10 @@ ALTER TABLE units ENABLE ROW LEVEL SECURITY;
 
 -- lectura pública
 CREATE POLICY "public read units"   ON units FOR SELECT TO anon USING (true);
--- solo admin puede insertar/actualizar (upsert desde la app con anon key)
-CREATE POLICY "public upsert units" ON units FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "public update units" ON units FOR UPDATE TO anon USING (true);
+-- solo admin puede insertar/actualizar/eliminar (upsert desde la app con anon key)
+CREATE POLICY "public upsert units"  ON units FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "public update units"  ON units FOR UPDATE TO anon USING (true);
+CREATE POLICY "public delete units"  ON units FOR DELETE TO anon USING (true);
 
 -- 3. Tabla de exámenes
 CREATE TABLE IF NOT EXISTS exams (
