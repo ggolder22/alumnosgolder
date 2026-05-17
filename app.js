@@ -291,11 +291,23 @@ function downloadUnitPDFById(id) {
     }
   });
 
-  // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(150);
-  doc.text(`Electrotecnia 2026 — Unidad ${unit.id}`, margin, 290);
-  doc.text(`Descargado: ${new Date().toLocaleDateString('es-AR')}`, pageW - margin, 290, { align: 'right' });
+  // Footer legal en cada página
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 282, 210, 15, 'F');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `© 2026 Ing. Germán Golder ® | Prohibida su reproducción sin autorización | Ley 11.723 Propiedad Intelectual`,
+      pageW / 2, 288, { align: 'center' }
+    );
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Unidad ${unit.id}`, margin, 292);
+    doc.text(`${new Date().toLocaleDateString('es-AR')} | p. ${p}/${totalPages}`, pageW - margin, 292, { align: 'right' });
+  }
 
   doc.save(`Electrotecnia_Unidad${unit.id}.pdf`);
   toast(`PDF de la Unidad ${unit.id} descargado.`);
