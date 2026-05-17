@@ -221,7 +221,7 @@ function openUnit(id) {
 
   if (unit.pdf_url) {
     // Mostrar PDF en iframe
-    document.getElementById('pdfIframe').src = unit.pdf_url;
+    document.getElementById('pdfIframe').src = unit.pdf_url + '?v=' + Date.now();
     pdfDiv.style.display  = 'block';
     bodyDiv.style.display = 'none';
     btnDl.href            = unit.pdf_url;
@@ -549,7 +549,7 @@ async function saveUnit() {
     const statusEl = document.getElementById('pdfUploadStatus');
     statusEl.innerHTML = '<span style="color:#6b7280"><i class="fas fa-circle-notch fa-spin"></i> Subiendo PDF...</span>';
 
-    const fileName = `unidad-${unitId}.pdf`;
+    const fileName = `unidad-${unitId}-${Date.now()}.pdf`;
     const { error: upErr } = await db.storage
       .from('unit-pdfs')
       .upload(fileName, pdfFile, { upsert: true, contentType: 'application/pdf' });
