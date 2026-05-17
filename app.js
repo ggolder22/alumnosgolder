@@ -340,47 +340,61 @@ async function loadStudentExams() {
 
 // ── ADMIN ─────────────────────────────────────────────────────
 async function loadAdminData() {
-  const { data: students } = await db
+  // Renderizar botones de editar siempre, sin esperar a Supabase
+  renderAdminUnitsEdit();
+
+  const { data: students, error } = await db
     .from('students')
     .select('*, exam_results(score)')
     .order('full_name');
 
+  const list = students || [];
+
   // Stats
-  const total = students?.length || 0;
-  const withExams = students?.filter(s => s.exam_results?.length > 0).length || 0;
-  const avgScore = students?.reduce((acc, s) => {
-    const scores = s.exam_results?.map(r => r.score) || [];
-    return acc + (scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
-  }, 0) / (withExams || 1);
+  const total     = list.length;
+  const withExams = list.filter(s => (s.exam_results?.length || 0) > 0).length;
+  const avgScore  = withExams
+    ? list.reduce((acc, s) => {
+        const scores = s.exam_results?.map(r => r.score) || [];
+        return acc + (scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0);
+      }, 0) / withExams
+    : 0;
 
   document.getElementById('adminStats').innerHTML = `
     <div class="stat-card"><div class="num">${total}</div><div class="label">Alumnos registrados</div></div>
     <div class="stat-card"><div class="num">${withExams}</div><div class="label">Con evaluaciones</div></div>
     <div class="stat-card"><div class="num">${withExams ? avgScore.toFixed(1) : '—'}</div><div class="label">Promedio general</div></div>
-    <div class="stat-card"><div class="num">6</div><div class="label">Unidades de contenido</div></div>`;
+    <div class="stat-card"><div class="num">${liveUnits.length}</div><div class="label">Unidades de contenido</div></div>`;
 
   // Table
   const tbody = document.getElementById('studentsBody');
-  tbody.innerHTML = (students || []).map(s => {
-    const scores = s.exam_results?.map(r => r.score) || [];
-    const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '—';
-    const cls = scores.length ? (avg >= 7 ? 'score-high' : avg >= 5 ? 'score-mid' : 'score-low') : '';
-    return `<tr>
-      <td><strong>${s.full_name}</strong></td>
-      <td>${s.email}</td>
-      <td>${s.dni}</td>
-      <td>${new Date(s.created_at).toLocaleDateString('es-AR')}</td>
-      <td>${scores.length ? `<span class="score-badge ${cls}">${avg}</span>` : '<span style="color:#9ca3af">Sin evaluaciones</span>'}</td>
-    </tr>`;
-  }).join('');
+  if (error || list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#9ca3af;padding:32px">
+      ${error ? 'Ejecutá el SQL en Supabase para crear las tablas.' : 'Todavía no hay alumnos registrados.'}
+    </td></tr>`;
+  } else {
+    tbody.innerHTML = list.map(s => {
+      const scores = s.exam_results?.map(r => r.score) || [];
+      const avg = scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : '—';
+      const cls = scores.length ? (avg >= 7 ? 'score-high' : avg >= 5 ? 'score-mid' : 'score-low') : '';
+      return `<tr>
+        <td><strong>${s.full_name}</strong></td>
+        <td>${s.email}</td>
+        <td>${s.dni}</td>
+        <td>${new Date(s.created_at).toLocaleDateString('es-AR')}</td>
+        <td>${scores.length ? `<span class="score-badge ${cls}">${avg}</span>` : '<span style="color:#9ca3af">Sin evaluaciones</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
 
   // Notif student selector
   const sel = document.getElementById('notifStudent');
-  sel.innerHTML = (students || []).map(s =>
+  sel.innerHTML = list.map(s =>
     `<option value="${s.email}" data-wa="${s.phone || ''}">${s.full_name}</option>`
   ).join('');
+}
 
-  // Admin units edit
+function renderAdminUnitsEdit() {
   document.getElementById('adminUnitsEdit').innerHTML = liveUnits.map(u => `
     <div style="background:white;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:var(--shadow)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
