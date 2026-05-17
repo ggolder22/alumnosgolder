@@ -343,6 +343,9 @@ async function loadAdminData() {
   // Renderizar botones de editar siempre, sin esperar a Supabase
   renderAdminUnitsEdit();
 
+  // Test de conexión a Supabase
+  await testSupabaseConnection();
+
   const { data: students, error } = await db
     .from('students')
     .select('*, exam_results(score)')
@@ -392,6 +395,23 @@ async function loadAdminData() {
   sel.innerHTML = list.map(s =>
     `<option value="${s.email}" data-wa="${s.phone || ''}">${s.full_name}</option>`
   ).join('');
+}
+
+async function testSupabaseConnection() {
+  const el = document.getElementById('supabaseStatus');
+  if (!el) return;
+  el.innerHTML = '<span style="color:#6b7280"><i class="fas fa-circle-notch fa-spin"></i> Verificando conexión a Supabase...</span>';
+
+  try {
+    const { data, error } = await db.from('students').select('id').limit(1);
+    if (error) {
+      el.innerHTML = `<span style="color:#ef4444"><i class="fas fa-times-circle"></i> Error Supabase: ${error.message}</span>`;
+    } else {
+      el.innerHTML = '<span style="color:#10b981"><i class="fas fa-check-circle"></i> Supabase conectado correctamente</span>';
+    }
+  } catch (e) {
+    el.innerHTML = `<span style="color:#ef4444"><i class="fas fa-times-circle"></i> Sin conexión: ${e.message}</span>`;
+  }
 }
 
 function renderAdminUnitsEdit() {
