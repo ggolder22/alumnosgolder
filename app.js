@@ -32,6 +32,7 @@ async function loadUnitsFromDB() {
         topics:  Array.isArray(row.topics) ? row.topics : JSON.parse(row.topics || '[]'),
         tag:     row.tag,
         content: row.content,
+        pdf_url: row.pdf_url,
       }));
     }
   } catch (_) {
