@@ -134,6 +134,21 @@ ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS started_at timestamptz;
 CREATE POLICY "public update results" ON exam_results FOR UPDATE TO anon USING (true);
 CREATE POLICY "public delete results" ON exam_results FOR DELETE TO anon USING (true);
 
+-- ── TABLÓN DE NOVEDADES ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS announcements (
+  id         uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  title      text NOT NULL,
+  body       text NOT NULL,
+  is_pinned  boolean DEFAULT false,
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read announcements"   ON announcements FOR SELECT TO anon USING (true);
+CREATE POLICY "public insert announcements" ON announcements FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "public update announcements" ON announcements FOR UPDATE TO anon USING (true);
+CREATE POLICY "public delete announcements" ON announcements FOR DELETE TO anon USING (true);
+
 -- ── DATOS DE EJEMPLO ─────────────────────────────────────────
 -- Podés insertar un examen de prueba:
 -- INSERT INTO exams (title, unit_id, time_limit) VALUES ('Evaluación Unidad 1 — Ley de Ohm', 1, 60);

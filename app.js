@@ -11,6 +11,7 @@ let liveUnits = [...UNITS]; // se sobreescribe con datos de Supabase si existen
 window.addEventListener('DOMContentLoaded', async () => {
   await loadUnitsFromDB();
   renderUnitsGrid('unitsGrid');
+  loadAnnouncements();
   loadStoredSession();
   document.getElementById('notifTarget').addEventListener('change', e => {
     document.getElementById('notifStudentRow').style.display =
@@ -348,13 +349,180 @@ function downloadUnitPDFById(id) {
 
 // loadStudentExams() is defined in exams.js (handles both available exams and history)
 
+// ── NOVEDADES / TABLÓN ────────────────────────────────────────
+let announcementsCache  = [];
+let currentAnnounceId  = null;
+
+async function loadAnnouncements() {
+  try {
+    const { data } = await db
+      .from('announcements')
+      .select('*')
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+    announcementsCache = data || [];
+    renderAnnouncements(announcementsCache);
+  } catch (_) {}
+}
+
+function renderAnnouncements(list) {
+  const section = document.getElementById('announcementsSection');
+  const el      = document.getElementById('announcementsList');
+  if (!section || !el) return;
+  if (!list.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+
+  el.innerHTML = list.map(ann => {
+    const date = new Date(ann.created_at).toLocaleDateString('es-AR', {
+      day: 'numeric', month: 'long', year: 'numeric'
+    });
+    if (ann.is_pinned) {
+      return `
+      <div style="background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:white;
+        border-radius:12px;padding:20px 24px;margin-bottom:12px;box-shadow:var(--shadow-lg)">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+          opacity:.8;margin-bottom:8px">📌 Destacado</div>
+        <h4 style="color:white;font-size:17px;margin-bottom:8px">${ann.title}</h4>
+        <p style="opacity:.9;font-size:14px;line-height:1.7;white-space:pre-line">${ann.body}</p>
+        <p style="font-size:11px;opacity:.55;margin-top:10px">${date}</p>
+      </div>`;
+    }
+    return `
+    <div style="background:white;border-radius:12px;padding:18px 24px;margin-bottom:10px;
+      box-shadow:var(--shadow);border-left:4px solid var(--primary)">
+      <h4 style="font-size:16px;margin-bottom:6px">${ann.title}</h4>
+      <p style="color:var(--gray-700);font-size:14px;line-height:1.7;white-space:pre-line">${ann.body}</p>
+      <p style="font-size:11px;color:var(--gray-500);margin-top:8px">${date}</p>
+    </div>`;
+  }).join('');
+}
+
+async function loadAdminAnnouncements() {
+  const { data } = await db
+    .from('announcements')
+    .select('*')
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false });
+  announcementsCache = data || [];
+  renderAdminAnnouncements(announcementsCache);
+}
+
+function renderAdminAnnouncements(list) {
+  const el = document.getElementById('adminNewsList');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--gray-500)">
+      <i class="fas fa-bullhorn" style="font-size:36px;opacity:.3;display:block;margin-bottom:12px"></i>
+      Todavía no publicaste ninguna novedad.
+    </div>`;
+    return;
+  }
+  el.innerHTML = list.map(ann => {
+    const date    = new Date(ann.created_at).toLocaleDateString('es-AR');
+    const preview = ann.body.length > 100 ? ann.body.substring(0, 100) + '…' : ann.body;
+    return `
+    <div style="background:white;border-radius:12px;padding:18px 20px;margin-bottom:10px;
+      box-shadow:var(--shadow);border-left:4px solid ${ann.is_pinned ? 'var(--primary)' : 'var(--gray-300)'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            ${ann.is_pinned ? '<span style="font-size:12px;color:var(--primary);font-weight:700">📌 Destacado</span>' : ''}
+            <strong>${ann.title}</strong>
+          </div>
+          <p style="font-size:13px;color:var(--gray-700);line-height:1.6">${preview}</p>
+          <p style="font-size:11px;color:var(--gray-500);margin-top:6px">${date}</p>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm"
+            title="${ann.is_pinned ? 'Quitar destacado' : 'Destacar'}"
+            onclick="togglePinAnnouncement('${ann.id}',${ann.is_pinned})">
+            <i class="fas fa-thumbtack" style="color:${ann.is_pinned ? 'var(--primary)' : 'var(--gray-400)'}"></i>
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="editAnnouncement('${ann.id}')">
+            <i class="fas fa-edit"></i>
+          </button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--danger)"
+            onclick="deleteAnnouncement('${ann.id}')">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveAnnouncement() {
+  const title    = document.getElementById('fNewsTitle').value.trim();
+  const body     = document.getElementById('fNewsBody').value.trim();
+  const is_pinned = document.getElementById('fNewsPinned').checked;
+
+  if (!title || !body) {
+    showAlert('newsFormAlert', 'Completá título y contenido.', 'danger'); return;
+  }
+
+  const payload = { title, body, is_pinned };
+
+  if (currentAnnounceId) {
+    const { error } = await db.from('announcements').update(payload).eq('id', currentAnnounceId);
+    if (error) { showAlert('newsFormAlert', error.message, 'danger'); return; }
+  } else {
+    const { error } = await db.from('announcements').insert([payload]);
+    if (error) { showAlert('newsFormAlert', error.message, 'danger'); return; }
+  }
+
+  cancelNewsEdit();
+  await loadAdminAnnouncements();
+  loadAnnouncements();
+  toast('Novedad publicada.');
+}
+
+function editAnnouncement(id) {
+  const ann = announcementsCache.find(a => a.id === id);
+  if (!ann) return;
+  currentAnnounceId = id;
+  document.getElementById('newsFormMode').textContent  = 'Editar novedad';
+  document.getElementById('fNewsTitle').value          = ann.title;
+  document.getElementById('fNewsBody').value           = ann.body;
+  document.getElementById('fNewsPinned').checked       = ann.is_pinned;
+  document.getElementById('btnCancelNewsEdit').style.display = 'inline-flex';
+  document.getElementById('newsFormAlert').innerHTML   = '';
+  document.getElementById('fNewsTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('fNewsTitle').focus();
+}
+
+function cancelNewsEdit() {
+  currentAnnounceId = null;
+  document.getElementById('newsFormMode').textContent  = 'Nueva novedad';
+  document.getElementById('fNewsTitle').value          = '';
+  document.getElementById('fNewsBody').value           = '';
+  document.getElementById('fNewsPinned').checked       = false;
+  document.getElementById('btnCancelNewsEdit').style.display = 'none';
+  document.getElementById('newsFormAlert').innerHTML   = '';
+}
+
+async function togglePinAnnouncement(id, current) {
+  await db.from('announcements').update({ is_pinned: !current }).eq('id', id);
+  await loadAdminAnnouncements();
+  loadAnnouncements();
+  toast(!current ? 'Novedad destacada.' : 'Se quitó el destacado.');
+}
+
+async function deleteAnnouncement(id) {
+  if (!confirm('¿Eliminar esta novedad?')) return;
+  await db.from('announcements').delete().eq('id', id);
+  await loadAdminAnnouncements();
+  loadAnnouncements();
+  toast('Novedad eliminada.');
+}
+
 // ── ADMIN ─────────────────────────────────────────────────────
 async function loadAdminData() {
   // Renderizar botones de editar siempre, sin esperar a Supabase
   renderAdminUnitsEdit();
 
-  // Cargar lista de exámenes
+  // Cargar lista de exámenes y novedades
   if (typeof loadAdminExams === 'function') loadAdminExams();
+  loadAdminAnnouncements();
 
   // Test de conexión a Supabase
   await testSupabaseConnection();
