@@ -38,6 +38,9 @@ async function loadUnitsFromDB() {
   } catch (_) {
     // tabla no existe aún → usa datos estáticos
   }
+  // Actualizar contador del hero
+  const counter = document.getElementById('heroUnitCount');
+  if (counter) counter.textContent = liveUnits.length;
 }
 
 // ── SESSION ───────────────────────────────────────────────────
