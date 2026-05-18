@@ -348,47 +348,15 @@ function downloadUnitPDFById(id) {
   toast(`PDF de la Unidad ${unit.id} descargado.`);
 }
 
-// ── STUDENT EXAMS ─────────────────────────────────────────────
-async function loadStudentExams() {
-  if (!currentUser || currentUser.is_admin) return;
-
-  const { data } = await db
-    .from('exam_results')
-    .select('*, exams(title, unit_id)')
-    .eq('student_id', currentUser.id)
-    .order('taken_at', { ascending: false });
-
-  const container = document.getElementById('examResults');
-  const empty = document.getElementById('examEmpty');
-
-  if (!data || data.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
-  container.innerHTML = `
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Evaluación</th><th>Fecha</th><th>Puntaje</th><th>Estado</th></tr></thead>
-        <tbody>
-          ${data.map(r => `
-            <tr>
-              <td>${r.exams?.title || 'Evaluación'}</td>
-              <td>${new Date(r.taken_at).toLocaleDateString('es-AR')}</td>
-              <td>${r.score}/10</td>
-              <td><span class="score-badge ${r.score >= 7 ? 'score-high' : r.score >= 5 ? 'score-mid' : 'score-low'}">
-                ${r.score >= 7 ? 'Aprobado' : r.score >= 5 ? 'Regular' : 'Desaprobado'}
-              </span></td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
-}
+// loadStudentExams() is defined in exams.js (handles both available exams and history)
 
 // ── ADMIN ─────────────────────────────────────────────────────
 async function loadAdminData() {
   // Renderizar botones de editar siempre, sin esperar a Supabase
   renderAdminUnitsEdit();
+
+  // Cargar lista de exámenes
+  if (typeof loadAdminExams === 'function') loadAdminExams();
 
   // Test de conexión a Supabase
   await testSupabaseConnection();

@@ -95,6 +95,44 @@ CREATE POLICY "admin delete pdfs"
 -- ── Agregar columna pdf_url a units (si ya existe la tabla) ──
 ALTER TABLE units ADD COLUMN IF NOT EXISTS pdf_url text;
 
+-- ── SISTEMA DE EXÁMENES ───────────────────────────────────────
+
+-- Agregar columnas al examen
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_active   boolean DEFAULT false;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS time_limit  int     DEFAULT 60;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS instructions text;
+
+-- Políticas adicionales para exams (insert/update/delete)
+CREATE POLICY "public insert exams" ON exams FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "public update exams" ON exams FOR UPDATE TO anon USING (true);
+CREATE POLICY "public delete exams" ON exams FOR DELETE TO anon USING (true);
+
+-- Tabla de preguntas
+CREATE TABLE IF NOT EXISTS exam_questions (
+  id             uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  exam_id        uuid REFERENCES exams(id) ON DELETE CASCADE,
+  question_text  text NOT NULL,
+  type           text NOT NULL CHECK (type IN ('multiple_choice','true_false','short_answer')),
+  options        jsonb,
+  correct_answer text,
+  points         numeric(4,1) DEFAULT 1,
+  order_num      int DEFAULT 0
+);
+
+ALTER TABLE exam_questions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "public read questions"   ON exam_questions FOR SELECT TO anon USING (true);
+CREATE POLICY "public insert questions" ON exam_questions FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "public update questions" ON exam_questions FOR UPDATE TO anon USING (true);
+CREATE POLICY "public delete questions" ON exam_questions FOR DELETE TO anon USING (true);
+
+-- Columnas adicionales en exam_results
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS answers    jsonb;
+ALTER TABLE exam_results ADD COLUMN IF NOT EXISTS started_at timestamptz;
+
+-- Políticas adicionales para exam_results
+CREATE POLICY "public update results" ON exam_results FOR UPDATE TO anon USING (true);
+CREATE POLICY "public delete results" ON exam_results FOR DELETE TO anon USING (true);
+
 -- ── DATOS DE EJEMPLO ─────────────────────────────────────────
 -- Podés insertar un examen de prueba:
--- INSERT INTO exams (title, unit_id) VALUES ('Evaluación Unidad 1 — Ley de Ohm', 1);
+-- INSERT INTO exams (title, unit_id, time_limit) VALUES ('Evaluación Unidad 1 — Ley de Ohm', 1, 60);
