@@ -700,6 +700,21 @@ async function startExam(examId) {
   const { data: exam } = await db.from('exams').select('*').eq('id', examId).single();
   if (!exam?.is_active) { toast('Esta evaluación ya no está disponible.'); return; }
 
+  // Examen formal: verificar que no lo haya rendido antes
+  if (!exam.is_practice && currentUser) {
+    const { data: prev } = await db
+      .from('exam_results')
+      .select('score')
+      .eq('exam_id', examId)
+      .eq('student_id', currentUser.id)
+      .maybeSingle();
+    if (prev) {
+      const nota = prev.score !== null ? `Nota: ${prev.score}/10` : 'En revisión';
+      toast(`Ya rendiste esta evaluación. ${nota}`);
+      return;
+    }
+  }
+
   const { data: questions } = await db
     .from('exam_questions').select('*')
     .eq('exam_id', examId).order('order_num');
@@ -716,8 +731,9 @@ async function startExam(examId) {
 
   // Render header
   document.getElementById('takeExamTitle').textContent    = exam.title;
-  document.getElementById('takeExamSubtitle').textContent =
-    `${questions.length} pregunta${questions.length !== 1 ? 's' : ''} · ${exam.time_limit} minutos`;
+  document.getElementById('takeExamSubtitle').textContent = exam.is_practice
+    ? `${questions.length} pregunta${questions.length !== 1 ? 's' : ''} · Sin límite de tiempo`
+    : `${questions.length} pregunta${questions.length !== 1 ? 's' : ''} · ${exam.time_limit} minutos`;
 
   // Render body
   const body = document.getElementById('takeExamBody');
@@ -730,7 +746,15 @@ async function startExam(examId) {
   document.getElementById('takeExamSubmitBtn').style.display = 'inline-flex';
   document.getElementById('takeExamTimer').style.color = 'white';
 
-  startTimer(exam.time_limit * 60);
+  if (exam.is_practice) {
+    stopTimer();
+    document.getElementById('takeExamTimer').textContent = '∞';
+    document.getElementById('takeExamTimer').style.color = '#86efac';
+    document.getElementById('takeExamTimer').style.fontSize = '36px';
+  } else {
+    startTimer(exam.time_limit * 60);
+    document.getElementById('takeExamTimer').style.fontSize = '32px';
+  }
   openModal('modalTakeExam');
 }
 
