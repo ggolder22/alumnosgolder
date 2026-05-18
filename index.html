@@ -783,10 +783,42 @@
 
       <!-- Preguntas — visible después de guardar -->
       <div id="examQSection" style="display:none;margin-top:28px;border-top:1px solid var(--gray-200);padding-top:20px">
+
+        <!-- Generador IA -->
+        <div style="background:linear-gradient(135deg,#eef2ff,#e0e7ff);border:1.5px solid #c7d2fe;border-radius:12px;padding:18px;margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <span style="font-size:20px">✨</span>
+            <div>
+              <strong style="font-size:15px">Generar preguntas con IA</strong>
+              <p style="font-size:12px;color:var(--gray-500);margin-top:1px">Claude lee el contenido de la unidad y genera las preguntas automáticamente.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:12px">
+            <div>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Múltiple opción</label>
+              <input class="form-control" id="aiMcCount" type="number" min="0" max="20" value="5" />
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Verdadero / Falso</label>
+              <input class="form-control" id="aiTfCount" type="number" min="0" max="20" value="3" />
+            </div>
+            <div>
+              <label style="font-size:12px;font-weight:600;display:block;margin-bottom:4px">Respuesta corta</label>
+              <input class="form-control" id="aiShortCount" type="number" min="0" max="10" value="2" />
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="generateExamWithAI()">
+            ✨ Generar preguntas
+          </button>
+          <div id="aiGenerationStatus" style="margin-top:10px;font-size:13px"></div>
+          <div id="aiPreview" style="margin-top:12px"></div>
+        </div>
+
+        <!-- Lista manual -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <strong style="font-size:15px">Preguntas</strong>
+          <strong style="font-size:15px">Preguntas del examen</strong>
           <button class="btn btn-outline btn-sm" onclick="openAddQuestion()">
-            <i class="fas fa-plus"></i> Agregar pregunta
+            <i class="fas fa-plus"></i> Agregar manualmente
           </button>
         </div>
         <div id="examQList"></div>

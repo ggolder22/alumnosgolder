@@ -286,6 +286,114 @@ async function deleteQuestion(qId) {
   toast('Pregunta eliminada.');
 }
 
+// ── ADMIN: GENERACIÓN CON IA ──────────────────────────────────
+let aiGeneratedQuestions = [];
+
+async function generateExamWithAI() {
+  if (!currentExamId) { toast('Guardá el examen primero.'); return; }
+
+  const mcCount    = parseInt(document.getElementById('aiMcCount').value)    || 0;
+  const tfCount    = parseInt(document.getElementById('aiTfCount').value)    || 0;
+  const shortCount = parseInt(document.getElementById('aiShortCount').value) || 0;
+
+  if (mcCount + tfCount + shortCount === 0) {
+    showAlert('examFormAlert', 'Especificá al menos 1 pregunta.', 'danger'); return;
+  }
+
+  const statusEl  = document.getElementById('aiGenerationStatus');
+  const previewEl = document.getElementById('aiPreview');
+  statusEl.innerHTML = '<span style="color:var(--primary)"><i class="fas fa-circle-notch fa-spin"></i> Generando preguntas con IA…</span>';
+  previewEl.innerHTML = '';
+  aiGeneratedQuestions = [];
+
+  const unitId = document.getElementById('fExamUnit').value;
+  const unit   = liveUnits.find(u => u.id == unitId);
+
+  try {
+    const resp = await fetch('/api/generate-exam', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        unitTitle:   unit?.title || document.getElementById('fExamTitle').value,
+        unitTopics:  unit?.topics || [],
+        unitContent: unit?.content || '',
+        mcCount, tfCount, shortCount,
+      }),
+    });
+
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || 'Error desconocido');
+
+    aiGeneratedQuestions = data.questions || [];
+    const n = aiGeneratedQuestions.length;
+
+    statusEl.innerHTML = `<span style="color:var(--success)"><i class="fas fa-check-circle"></i>
+      ${n} pregunta${n !== 1 ? 's' : ''} generada${n !== 1 ? 's' : ''}.
+      Revisalas y luego importá.</span>`;
+
+    const typeLabel = { multiple_choice: 'Múltiple opción', true_false: 'V / F', short_answer: 'Respuesta corta' };
+
+    previewEl.innerHTML = aiGeneratedQuestions.map((q, i) => {
+      let opts = '';
+      if (q.type === 'multiple_choice' && q.options) {
+        opts = `<ul style="font-size:12px;color:var(--gray-500);margin:6px 0 0;padding-left:16px">
+          ${q.options.map((o, oi) =>
+            `<li><strong>${'ABCD'[oi]}.</strong> ${o}${o === q.correct_answer ? ' <span style="color:var(--success)">✓</span>' : ''}</li>`
+          ).join('')}
+        </ul>`;
+      } else if (q.type === 'true_false') {
+        opts = `<p style="font-size:12px;color:var(--gray-500);margin-top:4px">Correcto: <strong>${q.correct_answer}</strong></p>`;
+      }
+      return `<div style="background:white;border-radius:8px;padding:12px;margin-bottom:8px;border:1px solid var(--gray-300)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:11px;color:var(--primary);font-weight:700">${typeLabel[q.type]} · ${q.points} pt</span>
+          <span style="font-size:11px;color:var(--gray-500)">#${i + 1}</span>
+        </div>
+        <p style="font-size:14px;font-weight:500">${q.question_text}</p>
+        ${opts}
+      </div>`;
+    }).join('') + `
+    <button class="btn btn-success btn-sm" style="margin-top:4px" onclick="importGeneratedQuestions()">
+      <i class="fas fa-file-import"></i> Importar todas al examen
+    </button>`;
+
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:var(--danger)"><i class="fas fa-times-circle"></i> Error: ${e.message}</span>`;
+  }
+}
+
+async function importGeneratedQuestions() {
+  if (!currentExamId || !aiGeneratedQuestions.length) return;
+
+  const statusEl = document.getElementById('aiGenerationStatus');
+  statusEl.innerHTML = '<span style="color:var(--primary)"><i class="fas fa-circle-notch fa-spin"></i> Guardando preguntas…</span>';
+
+  const baseOrder = examQCache.length;
+  const rows = aiGeneratedQuestions.map((q, i) => ({
+    exam_id:        currentExamId,
+    question_text:  q.question_text,
+    type:           q.type,
+    options:        q.options ? JSON.stringify(q.options) : null,
+    correct_answer: q.correct_answer,
+    points:         parseFloat(q.points) || 1,
+    order_num:      baseOrder + i,
+  }));
+
+  const { error } = await db.from('exam_questions').insert(rows);
+  if (error) {
+    statusEl.innerHTML = `<span style="color:var(--danger)"><i class="fas fa-times-circle"></i> Error al guardar: ${error.message}</span>`;
+    return;
+  }
+
+  const n = rows.length;
+  statusEl.innerHTML = `<span style="color:var(--success)"><i class="fas fa-check-circle"></i> ¡${n} pregunta${n !== 1 ? 's' : ''} importada${n !== 1 ? 's' : ''}!</span>`;
+  document.getElementById('aiPreview').innerHTML = '';
+  aiGeneratedQuestions = [];
+  await loadExamQuestionsAdmin(currentExamId);
+  loadAdminExams();
+  toast(`${n} preguntas importadas al examen.`);
+}
+
 // ── ALUMNO: EVALUACIONES DISPONIBLES ─────────────────────────
 async function loadStudentExams() {
   if (!currentUser || currentUser.is_admin) return;
