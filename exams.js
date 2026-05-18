@@ -40,13 +40,15 @@ function renderAdminExams(list) {
       .join(' + ') || '—';
     const qCount = exam.exam_questions?.[0]?.count || 0;
     return `
-    <div style="background:white;border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:var(--shadow)">
+    <div style="background:white;border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:var(--shadow);
+      ${exam.is_practice ? 'border-left:4px solid var(--success)' : ''}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
         <div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
             <span class="score-badge ${exam.is_active ? 'score-high' : 'score-low'}" style="font-size:11px">
               ${exam.is_active ? '● ACTIVO' : '○ INACTIVO'}
             </span>
+            ${exam.is_practice ? '<span class="score-badge" style="font-size:11px;background:#d1fae5;color:#065f46">📝 PRÁCTICA</span>' : ''}
             <strong>${exam.title}</strong>
           </div>
           <p style="font-size:13px;color:var(--gray-500)">
@@ -78,12 +80,13 @@ function renderAdminExams(list) {
 function openCreateExam() {
   currentExamId = null;
   document.getElementById('examFormTitle').textContent = 'Nuevo examen';
-  document.getElementById('fExamTitle').value        = '';
-  document.getElementById('fExamTime').value         = 60;
-  document.getElementById('fExamInstr').value        = '';
-  document.getElementById('examFormAlert').innerHTML = '';
+  document.getElementById('fExamTitle').value          = '';
+  document.getElementById('fExamTime').value           = 60;
+  document.getElementById('fExamInstr').value          = '';
+  document.getElementById('fExamPractice').checked     = false;
+  document.getElementById('examFormAlert').innerHTML   = '';
   document.getElementById('examQSection').style.display = 'none';
-  document.getElementById('examQList').innerHTML     = '';
+  document.getElementById('examQList').innerHTML       = '';
   renderUnitCheckboxes([]);
   openModal('modalExam');
 }
@@ -94,8 +97,9 @@ async function openEditExam(examId) {
   currentExamId = examId;
   document.getElementById('examFormTitle').textContent = 'Editar examen';
   document.getElementById('fExamTitle').value  = exam.title;
-  document.getElementById('fExamTime').value   = exam.time_limit || 60;
-  document.getElementById('fExamInstr').value  = exam.instructions || '';
+  document.getElementById('fExamTime').value       = exam.time_limit || 60;
+  document.getElementById('fExamInstr').value      = exam.instructions || '';
+  document.getElementById('fExamPractice').checked = exam.is_practice || false;
   document.getElementById('examFormAlert').innerHTML = '';
   document.getElementById('examQSection').style.display = 'block';
   const savedUnitIds = exam.unit_ids
@@ -137,7 +141,8 @@ async function saveExam() {
 
   if (!title) { showAlert('examFormAlert', 'El título es obligatorio.', 'danger'); return; }
 
-  const payload = { title, unit_id, unit_ids: JSON.stringify(unit_ids), time_limit: time_lim, instructions: instr };
+  const is_practice = document.getElementById('fExamPractice').checked;
+  const payload = { title, unit_id, unit_ids: JSON.stringify(unit_ids), time_limit: time_lim, instructions: instr, is_practice };
 
   if (currentExamId) {
     const { error } = await db.from('exams').update(payload).eq('id', currentExamId);
@@ -621,33 +626,51 @@ async function loadStudentExams() {
     db.from('exam_results').select('*, exams(title)').eq('student_id', currentUser.id).order('taken_at', { ascending: false })
   ]);
 
-  // Disponibles
-  const avEl = document.getElementById('availableExams');
-  const avList = activeExams || [];
-  if (!avList.length) {
-    avEl.innerHTML = '<p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay evaluaciones habilitadas en este momento.</p>';
-  } else {
-    avEl.innerHTML = avList.map(exam => {
-      const examUnitIds = exam.unit_ids
-        ? (Array.isArray(exam.unit_ids) ? exam.unit_ids : JSON.parse(exam.unit_ids || '[]'))
-        : (exam.unit_id ? [exam.unit_id] : []);
-      const unitLabel = examUnitIds.map(uid => `U${uid}`).join(' + ');
-      const qCount = exam.exam_questions?.[0]?.count || 0;
-      return `
-      <div style="background:white;border-radius:12px;padding:18px 20px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <strong>${exam.title}</strong>
-          <p style="font-size:13px;color:var(--gray-500);margin-top:3px">
-            ${unitLabel ? unitLabel + ' &nbsp;·&nbsp;' : ''}
-            ${exam.time_limit} min &nbsp;·&nbsp; ${qCount} preguntas
-          </p>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="startExam('${exam.id}')">
-          <i class="fas fa-play-circle"></i> Iniciar
-        </button>
-      </div>`;
-    }).join('');
+  // Separar práctica de evaluaciones formales
+  const allActive   = activeExams || [];
+  const practiceList = allActive.filter(e => e.is_practice);
+  const formalList   = allActive.filter(e => !e.is_practice);
+
+  const buildExamCard = (exam, isPractice) => {
+    const examUnitIds = exam.unit_ids
+      ? (Array.isArray(exam.unit_ids) ? exam.unit_ids : JSON.parse(exam.unit_ids || '[]'))
+      : (exam.unit_id ? [exam.unit_id] : []);
+    const unitLabel = examUnitIds.map(uid => `U${uid}`).join(' + ');
+    const qCount    = exam.exam_questions?.[0]?.count || 0;
+    const btnColor  = isPractice ? 'btn-success' : 'btn-primary';
+    const btnLabel  = isPractice ? '📝 Practicar' : '<i class="fas fa-play-circle"></i> Iniciar';
+    return `
+    <div style="background:white;border-radius:12px;padding:18px 20px;margin-bottom:10px;
+      box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;
+      ${isPractice ? 'border-left:4px solid var(--success)' : ''}">
+      <div>
+        <strong>${exam.title}</strong>
+        <p style="font-size:13px;color:var(--gray-500);margin-top:3px">
+          ${unitLabel ? unitLabel + ' &nbsp;·&nbsp;' : ''}
+          ${exam.time_limit} min &nbsp;·&nbsp; ${qCount} preguntas
+          ${isPractice ? ' &nbsp;·&nbsp; <span style="color:var(--success);font-weight:600">sin nota · repetible</span>' : ''}
+        </p>
+      </div>
+      <button class="btn ${btnColor} btn-sm" onclick="startExam('${exam.id}')">
+        ${btnLabel}
+      </button>
+    </div>`;
+  };
+
+  // Práctica
+  const prEl = document.getElementById('practiceExams');
+  if (prEl) {
+    prEl.innerHTML = practiceList.length
+      ? practiceList.map(e => buildExamCard(e, true)).join('')
+      : '<p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay ejercicios de práctica disponibles.</p>';
   }
+  document.getElementById('practiceSection').style.display = practiceList.length ? 'block' : 'none';
+
+  // Formales
+  const avEl = document.getElementById('availableExams');
+  avEl.innerHTML = formalList.length
+    ? formalList.map(e => buildExamCard(e, false)).join('')
+    : '<p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay evaluaciones habilitadas en este momento.</p>';
 
   // Historial
   const container = document.getElementById('examResults');
@@ -944,6 +967,67 @@ async function submitExam(auto = false) {
     }
   });
 
+  // ── MODO PRÁCTICA: mostrar respuestas correctas, no guardar nota ──
+  if (takingExam.is_practice) {
+    stopTimer();
+    document.getElementById('takeExamSubmitBtn').style.display = 'none';
+    document.getElementById('takeExamTimer').textContent = '📝';
+    document.getElementById('takeExamTimer').style.color = '#86efac';
+
+    const typeLabel = { multiple_choice: 'Múltiple opción', true_false: 'V / F', short_answer: 'Respuesta corta' };
+    document.getElementById('takeExamBody').innerHTML = `
+      <div style="text-align:center;padding:24px 20px 20px">
+        <div style="font-size:52px;margin-bottom:10px">📖</div>
+        <h3 style="margin-bottom:4px">¡Práctica completada!</h3>
+        <p style="color:var(--gray-500);font-size:14px">Revisá tus respuestas y las correctas abajo.</p>
+        <p style="font-size:14px;margin-top:8px">Obtuviste <strong>${earnedPts.toFixed(1)}</strong> de <strong>${totalPts}</strong> puntos automáticos.</p>
+      </div>
+      ${examQCache.map((q, i) => {
+        const opts = q.options || [];
+        const studentAnswer = answers[q.id] || '';
+        let answersHtml = '';
+
+        if (q.type === 'multiple_choice' || q.type === 'true_false') {
+          const isCorrect = studentAnswer === q.correct_answer;
+          answersHtml = opts.map(opt => {
+            const isStudent  = opt === studentAnswer;
+            const isCorrectO = opt === q.correct_answer;
+            let bg = '#f9fafb', border = '#e5e7eb', color = '#374151';
+            if (isStudent && isCorrect)  { bg = '#d1fae5'; border = '#10b981'; color = '#065f46'; }
+            if (isStudent && !isCorrect) { bg = '#fee2e2'; border = '#ef4444'; color = '#991b1b'; }
+            if (!isStudent && isCorrectO){ bg = '#d1fae5'; border = '#10b981'; color = '#065f46'; }
+            const icon = isStudent ? (isCorrect ? '✓' : '✗') : (isCorrectO ? '✓' : '○');
+            return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;
+              margin-bottom:4px;border:1.5px solid ${border};background:${bg};color:${color};font-size:13px">
+              <strong style="min-width:14px">${icon}</strong> ${opt}
+              ${!isStudent && isCorrectO ? '<span style="margin-left:auto;font-size:11px;font-weight:700">← Correcta</span>' : ''}
+            </div>`;
+          }).join('');
+          answersHtml += `<p style="font-size:12px;font-weight:700;margin-top:6px;color:${isCorrect ? '#10b981' : '#ef4444'}">
+            ${isCorrect ? `✓ Correcto — ${q.points} pt` : `✗ Incorrecto — Respuesta correcta: ${q.correct_answer}`}
+          </p>`;
+        } else {
+          answersHtml = `
+            <div style="background:#f0fdf4;border-left:3px solid #10b981;border-radius:0 8px 8px 0;
+              padding:10px 14px;font-size:13px;margin-bottom:6px">
+              <p style="font-size:11px;font-weight:700;color:#15803d;margin-bottom:2px">TU RESPUESTA</p>
+              <p>${studentAnswer || '<em style="color:#9ca3af">Sin respuesta</em>'}</p>
+            </div>
+            <p style="font-size:12px;color:#6b7280;font-style:italic">Respuesta abierta — revisala con el profesor.</p>`;
+        }
+
+        return `
+        <div style="background:white;border-radius:10px;padding:16px 18px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.1)">
+          <p style="font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;
+            letter-spacing:.04em;margin-bottom:6px">${typeLabel[q.type]} · ${q.points} pt</p>
+          <p style="font-size:15px;font-weight:600;margin-bottom:10px">${i + 1}. ${q.question_text}</p>
+          ${answersHtml}
+        </div>`;
+      }).join('')}`;
+    return;
+  }
+
+  // ── EVALUACIÓN FORMAL: guardar nota ───────────────────────────
   const score = hasPending ? null : parseFloat(((earnedPts / totalPts) * 10).toFixed(1));
 
   const { error } = await db.from('exam_results').insert([{

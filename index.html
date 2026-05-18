@@ -489,13 +489,34 @@
       <div class="units-grid" id="unitsGridStudent"></div>
     </div>
     <div id="tabExams" class="tab-panel">
-      <p class="section-title">Evaluaciones disponibles</p>
-      <div id="availableExams" style="margin-bottom:32px">
-        <p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay evaluaciones habilitadas en este momento.</p>
+
+      <!-- Práctica -->
+      <div id="practiceSection" style="margin-bottom:36px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <span style="font-size:20px">📝</span>
+          <div>
+            <p class="section-title" style="margin:0">Ejercicios de práctica</p>
+            <p style="font-size:13px;color:var(--gray-500);margin-top:2px">
+              Podés hacerlos todas las veces que quieras — al terminar ves las respuestas correctas.
+            </p>
+          </div>
+        </div>
+        <div id="practiceExams">
+          <p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay ejercicios de práctica disponibles.</p>
+        </div>
       </div>
-      <p class="section-title">Mi historial</p>
-      <p id="examEmpty" class="section-sub">Todavía no rendiste ninguna evaluación.</p>
-      <div id="examResults"></div>
+
+      <!-- Evaluaciones formales -->
+      <div style="border-top:2px solid var(--gray-200);padding-top:28px">
+        <p class="section-title">Evaluaciones disponibles</p>
+        <div id="availableExams" style="margin-bottom:32px">
+          <p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay evaluaciones habilitadas en este momento.</p>
+        </div>
+        <p class="section-title">Mi historial</p>
+        <p id="examEmpty" class="section-sub">Todavía no rendiste ninguna evaluación.</p>
+        <div id="examResults"></div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -881,6 +902,20 @@
         <label>Instrucciones <span style="font-weight:400;color:var(--gray-500)">(opcional)</span></label>
         <textarea class="form-control" id="fExamInstr" rows="2"
           placeholder="Ej: Respondé todas las preguntas. Podés usar la hoja de fórmulas."></textarea>
+      </div>
+
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px 14px;
+          background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px">
+          <input type="checkbox" id="fExamPractice"
+            style="width:16px;height:16px;accent-color:var(--success);cursor:pointer;flex-shrink:0" />
+          <div>
+            <span style="font-size:14px;font-weight:600;color:#166534">📝 Modo práctica</span>
+            <p style="font-size:12px;color:#15803d;margin-top:1px">
+              Los alumnos ven las respuestas correctas al terminar. No genera nota. Se puede repetir.
+            </p>
+          </div>
+        </label>
       </div>
 
       <button class="btn btn-primary" onclick="saveExam()">
