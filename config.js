@@ -8,7 +8,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ADMIN_DNI = '31639669';   // <-- cambiá por tu DNI real
 
 // ── WhatsApp / Telegram ───────────────────────────────────────
-const WA_GROUP_LINK = 'https://chat.whatsapp.com/TU_LINK';
+const WA_GROUP_LINK = 'https://chat.whatsapp.com/GzKf4tiFO3N65ITaZwy87c?mode=gi_t';
 const TG_GROUP_LINK = 'https://t.me/TU_GRUPO';
 
 // ── EmailJS ───────────────────────────────────────────────────
