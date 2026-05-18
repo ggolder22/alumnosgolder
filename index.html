@@ -761,10 +761,11 @@
       </div>
       <div style="display:grid;grid-template-columns:1fr 120px;gap:16px">
         <div class="form-group" style="margin:0">
-          <label>Unidad (opcional)</label>
-          <select class="form-control" id="fExamUnit">
-            <option value="">— Sin unidad asignada —</option>
-          </select>
+          <label>Unidades que incluye <span style="font-weight:400;color:var(--gray-500)">(podés marcar varias)</span></label>
+          <div id="examUnitsCheckboxes"
+            style="max-height:130px;overflow-y:auto;border:1.5px solid var(--gray-300);border-radius:8px;padding:6px 8px;background:white">
+            <p style="color:var(--gray-500);font-size:13px;padding:4px">Cargando unidades…</p>
+          </div>
         </div>
         <div class="form-group" style="margin:0">
           <label>Tiempo (min)</label>

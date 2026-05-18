@@ -29,7 +29,14 @@ function renderAdminExams(list) {
     return;
   }
   el.innerHTML = list.map(exam => {
-    const unit   = liveUnits.find(u => u.id === exam.unit_id);
+    const examUnitIds = exam.unit_ids
+      ? (Array.isArray(exam.unit_ids) ? exam.unit_ids : JSON.parse(exam.unit_ids || '[]'))
+      : (exam.unit_id ? [exam.unit_id] : []);
+    const unitNames = examUnitIds
+      .map(uid => liveUnits.find(u => u.id === uid))
+      .filter(Boolean)
+      .map(u => `U${u.id}: ${u.title}`)
+      .join(' + ') || '—';
     const qCount = exam.exam_questions?.[0]?.count || 0;
     return `
     <div style="background:white;border-radius:12px;padding:20px;margin-bottom:12px;box-shadow:var(--shadow)">
@@ -42,12 +49,16 @@ function renderAdminExams(list) {
             <strong>${exam.title}</strong>
           </div>
           <p style="font-size:13px;color:var(--gray-500)">
-            ${unit ? `Unidad ${unit.id}: ${unit.title}` : '—'} &nbsp;·&nbsp;
+            ${unitNames} &nbsp;·&nbsp;
             ${exam.time_limit || 60} min &nbsp;·&nbsp;
             ${qCount} pregunta${qCount != 1 ? 's' : ''}
           </p>
         </div>
-        <div style="display:flex;gap:8px;flex-shrink:0">
+        <div style="display:flex;gap:8px;flex-shrink:0;align-items:center">
+          <button class="btn btn-ghost btn-sm" title="Descargar para imprimir"
+            onclick="downloadExamPDF('${exam.id}')">
+            <i class="fas fa-print"></i> Imprimir
+          </button>
           <button class="btn btn-outline btn-sm" onclick="openEditExam('${exam.id}')">
             <i class="fas fa-edit"></i> Editar
           </button>
@@ -67,13 +78,12 @@ function openCreateExam() {
   currentExamId = null;
   document.getElementById('examFormTitle').textContent = 'Nuevo examen';
   document.getElementById('fExamTitle').value        = '';
-  document.getElementById('fExamUnit').value         = '';
   document.getElementById('fExamTime').value         = 60;
   document.getElementById('fExamInstr').value        = '';
   document.getElementById('examFormAlert').innerHTML = '';
   document.getElementById('examQSection').style.display = 'none';
   document.getElementById('examQList').innerHTML     = '';
-  fillUnitSelector('fExamUnit');
+  renderUnitCheckboxes([]);
   openModal('modalExam');
 }
 
@@ -83,33 +93,50 @@ async function openEditExam(examId) {
   currentExamId = examId;
   document.getElementById('examFormTitle').textContent = 'Editar examen';
   document.getElementById('fExamTitle').value  = exam.title;
-  document.getElementById('fExamUnit').value   = exam.unit_id || '';
   document.getElementById('fExamTime').value   = exam.time_limit || 60;
   document.getElementById('fExamInstr').value  = exam.instructions || '';
   document.getElementById('examFormAlert').innerHTML = '';
   document.getElementById('examQSection').style.display = 'block';
-  fillUnitSelector('fExamUnit', exam.unit_id);
+  const savedUnitIds = exam.unit_ids
+    ? (Array.isArray(exam.unit_ids) ? exam.unit_ids : JSON.parse(exam.unit_ids || '[]'))
+    : (exam.unit_id ? [exam.unit_id] : []);
+  renderUnitCheckboxes(savedUnitIds);
   await loadExamQuestionsAdmin(examId);
   openModal('modalExam');
 }
 
-function fillUnitSelector(selId, selected) {
-  const sel = document.getElementById(selId);
-  sel.innerHTML = '<option value="">— Unidad (opcional) —</option>' +
-    [...liveUnits].sort((a,b) => a.id - b.id).map(u =>
-      `<option value="${u.id}" ${u.id == selected ? 'selected' : ''}>
-        Unidad ${u.id}: ${u.title}</option>`).join('');
+function renderUnitCheckboxes(selectedIds = []) {
+  const container = document.getElementById('examUnitsCheckboxes');
+  if (!container) return;
+  const sorted = [...liveUnits].sort((a, b) => a.id - b.id);
+  if (!sorted.length) {
+    container.innerHTML = '<p style="color:var(--gray-500);font-size:13px;padding:4px">No hay unidades creadas.</p>';
+    return;
+  }
+  container.innerHTML = sorted.map(u => `
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 6px;cursor:pointer;border-radius:6px"
+      onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+      <input type="checkbox" value="${u.id}" ${selectedIds.includes(u.id) ? 'checked' : ''}
+        style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;flex-shrink:0" />
+      <span style="font-size:13px"><strong>U${u.id}</strong> — ${u.title}</span>
+    </label>`).join('');
+}
+
+function getSelectedUnitIds() {
+  return [...document.querySelectorAll('#examUnitsCheckboxes input[type="checkbox"]:checked')]
+    .map(cb => parseInt(cb.value));
 }
 
 async function saveExam() {
   const title    = document.getElementById('fExamTitle').value.trim();
-  const unit_id  = parseInt(document.getElementById('fExamUnit').value) || null;
+  const unit_ids = getSelectedUnitIds();
+  const unit_id  = unit_ids[0] || null;
   const time_lim = parseInt(document.getElementById('fExamTime').value) || 60;
   const instr    = document.getElementById('fExamInstr').value.trim();
 
   if (!title) { showAlert('examFormAlert', 'El título es obligatorio.', 'danger'); return; }
 
-  const payload = { title, unit_id, time_limit: time_lim, instructions: instr };
+  const payload = { title, unit_id, unit_ids: JSON.stringify(unit_ids), time_limit: time_lim, instructions: instr };
 
   if (currentExamId) {
     const { error } = await db.from('exams').update(payload).eq('id', currentExamId);
@@ -306,17 +333,20 @@ async function generateExamWithAI() {
   previewEl.innerHTML = '';
   aiGeneratedQuestions = [];
 
-  const unitId = document.getElementById('fExamUnit').value;
-  const unit   = liveUnits.find(u => u.id == unitId);
+  const unitIds     = getSelectedUnitIds();
+  const units       = unitIds.map(id => liveUnits.find(u => u.id === id)).filter(Boolean);
+  const unitTitle   = units.length
+    ? units.map(u => `Unidad ${u.id}: ${u.title}`).join(' + ')
+    : document.getElementById('fExamTitle').value;
+  const unitTopics  = units.flatMap(u => u.topics || []);
+  const unitContent = units.map(u => u.content || '').filter(Boolean).join('\n\n');
 
   try {
     const resp = await fetch('/api/generate-exam', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        unitTitle:   unit?.title || document.getElementById('fExamTitle').value,
-        unitTopics:  unit?.topics || [],
-        unitContent: unit?.content || '',
+        unitTitle, unitTopics, unitContent,
         mcCount, tfCount, shortCount,
       }),
     });
@@ -410,14 +440,17 @@ async function loadStudentExams() {
     avEl.innerHTML = '<p style="color:var(--gray-500);font-size:14px;padding:8px 0">No hay evaluaciones habilitadas en este momento.</p>';
   } else {
     avEl.innerHTML = avList.map(exam => {
-      const unit   = liveUnits.find(u => u.id === exam.unit_id);
+      const examUnitIds = exam.unit_ids
+        ? (Array.isArray(exam.unit_ids) ? exam.unit_ids : JSON.parse(exam.unit_ids || '[]'))
+        : (exam.unit_id ? [exam.unit_id] : []);
+      const unitLabel = examUnitIds.map(uid => `U${uid}`).join(' + ');
       const qCount = exam.exam_questions?.[0]?.count || 0;
       return `
       <div style="background:white;border-radius:12px;padding:18px 20px;margin-bottom:10px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center">
         <div>
           <strong>${exam.title}</strong>
           <p style="font-size:13px;color:var(--gray-500);margin-top:3px">
-            ${unit ? `Unidad ${unit.id}` : ''} &nbsp;·&nbsp;
+            ${unitLabel ? unitLabel + ' &nbsp;·&nbsp;' : ''}
             ${exam.time_limit} min &nbsp;·&nbsp; ${qCount} preguntas
           </p>
         </div>
@@ -552,6 +585,147 @@ function updateTimerDisplay() {
 }
 
 function stopTimer() { clearInterval(examTimerRef); examTimerRef = null; }
+
+// ── DESCARGAR EXAMEN EN PDF (para imprimir) ───────────────────
+async function downloadExamPDF(examId) {
+  toast('Generando PDF…');
+  const [{ data: exam }, { data: questions }] = await Promise.all([
+    db.from('exams').select('*').eq('id', examId).single(),
+    db.from('exam_questions').select('*').eq('exam_id', examId).order('order_num'),
+  ]);
+
+  if (!exam) { toast('No se encontró el examen.'); return; }
+  if (!questions?.length) { toast('El examen no tiene preguntas.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc  = new jsPDF({ unit: 'mm', format: 'a4' });
+  const pageW = 210, margin = 18, contentW = pageW - margin * 2;
+  let y = margin;
+
+  const addPage = () => { doc.addPage(); y = margin; };
+  const checkY  = (needed) => { if (y + needed > 278) addPage(); };
+
+  // ── ENCABEZADO ──
+  doc.setFillColor(26, 86, 219);
+  doc.rect(0, 0, 210, 34, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+  doc.text('ELECTROTECNIA', margin, 13);
+  doc.setFontSize(11); doc.setFont('helvetica', 'normal');
+  const titleLines = doc.splitTextToSize(exam.title, contentW - 30);
+  doc.text(titleLines, margin, 22);
+  doc.setFontSize(9);
+  doc.text(`${exam.time_limit || 60} min`, pageW - margin, 22, { align: 'right' });
+  y = 42;
+
+  // ── DATOS DEL ALUMNO ──
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.text('Apellido y Nombre: ________________________________________________   DNI: ________________   Nota: _______', margin, y);
+  y += 5;
+  doc.text('Fecha: _______________   Firma: ________________________________________________', margin, y);
+  y += 4;
+  doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.3);
+  doc.line(margin, y, pageW - margin, y);
+  y += 6;
+
+  // ── INSTRUCCIONES ──
+  if (exam.instructions) {
+    doc.setFontSize(9); doc.setFont('helvetica', 'italic'); doc.setTextColor(60, 60, 60);
+    const il = doc.splitTextToSize(`Instrucciones: ${exam.instructions}`, contentW);
+    checkY(il.length * 5 + 4);
+    doc.text(il, margin, y);
+    y += il.length * 5 + 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, pageW - margin, y);
+    y += 5;
+  }
+
+  // ── PREGUNTAS ──
+  let totalPts = 0;
+  questions.forEach((q, idx) => {
+    const opts = q.options
+      ? (Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]'))
+      : [];
+    const pts  = parseFloat(q.points) || 1;
+    totalPts  += pts;
+    const typeMap = { multiple_choice: 'Múltiple opción', true_false: 'Verdadero / Falso', short_answer: 'Respuesta corta' };
+
+    // Estimate height before rendering
+    const qTextLines = doc.splitTextToSize(q.question_text, contentW - 6);
+    let estH = 8 + qTextLines.length * 5.5;
+    if (q.type === 'multiple_choice') estH += opts.length * 7 + 3;
+    else if (q.type === 'true_false')  estH += 9;
+    else                               estH += 24;
+    checkY(estH);
+
+    // Question header
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(26, 86, 219);
+    doc.text(`${idx + 1}.  [${typeMap[q.type]}  —  ${pts} punto${pts !== 1 ? 's' : ''}]`, margin, y);
+    y += 6;
+
+    // Question text
+    doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(15, 15, 15);
+    doc.text(qTextLines, margin + 4, y);
+    y += qTextLines.length * 5.5 + 2;
+
+    if (q.type === 'multiple_choice') {
+      opts.forEach((opt, oi) => {
+        const optLines = doc.splitTextToSize(`${' ABCD'[oi + 1]})  ${opt}`, contentW - 18);
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
+        // Small circle marker
+        doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.4);
+        doc.circle(margin + 10, y - 1, 2.5);
+        doc.text(optLines, margin + 14, y);
+        y += optLines.length * 5.5 + 1;
+      });
+      y += 3;
+    } else if (q.type === 'true_false') {
+      doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(35, 35, 35);
+      doc.setDrawColor(120, 120, 120); doc.setLineWidth(0.4);
+      doc.circle(margin + 12, y - 1, 2.5);
+      doc.text('Verdadero', margin + 16, y);
+      doc.circle(margin + 52, y - 1, 2.5);
+      doc.text('Falso', margin + 56, y);
+      y += 9;
+    } else {
+      // Short answer — blank lines
+      doc.setDrawColor(180, 180, 180); doc.setLineWidth(0.35);
+      for (let l = 0; l < 3; l++) {
+        y += 7;
+        doc.line(margin + 4, y, pageW - margin, y);
+      }
+      y += 6;
+    }
+
+    // Thin separator between questions
+    doc.setDrawColor(230, 230, 230); doc.setLineWidth(0.2);
+    doc.line(margin, y, pageW - margin, y);
+    y += 4;
+  });
+
+  // Total points summary at the end
+  checkY(10);
+  doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(26, 86, 219);
+  doc.text(`Total: ${totalPts} punto${totalPts !== 1 ? 's' : ''}`, pageW - margin, y, { align: 'right' });
+
+  // ── PIE DE PÁGINA ──
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 286, 210, 11, 'F');
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(148, 163, 184);
+    doc.text(
+      '© 2026 Ing. Germán Golder ® | Ley 11.723 Propiedad Intelectual | Prohibida su reproducción sin autorización',
+      pageW / 2, 291, { align: 'center' }
+    );
+    doc.text(`Página ${p}/${totalPages}`, pageW - margin, 291, { align: 'right' });
+  }
+
+  doc.save(`Examen_${exam.title.replace(/[^a-z0-9áéíóúüñ\s]/gi, '').trim().replace(/\s+/g, '_')}.pdf`);
+  toast('PDF generado — listo para imprimir.');
+}
 
 function cancelExam() {
   if (!confirm('¿Salir de la evaluación? Las respuestas no se guardarán.')) return;

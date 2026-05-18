@@ -98,9 +98,10 @@ ALTER TABLE units ADD COLUMN IF NOT EXISTS pdf_url text;
 -- ── SISTEMA DE EXÁMENES ───────────────────────────────────────
 
 -- Agregar columnas al examen
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_active   boolean DEFAULT false;
-ALTER TABLE exams ADD COLUMN IF NOT EXISTS time_limit  int     DEFAULT 60;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS is_active    boolean DEFAULT false;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS time_limit   int     DEFAULT 60;
 ALTER TABLE exams ADD COLUMN IF NOT EXISTS instructions text;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS unit_ids     jsonb;
 
 -- Políticas adicionales para exams (insert/update/delete)
 CREATE POLICY "public insert exams" ON exams FOR INSERT TO anon WITH CHECK (true);
