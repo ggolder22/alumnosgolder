@@ -17,6 +17,7 @@ async function loadAdminExams() {
     .select('*, exam_questions(count)')
     .order('created_at', { ascending: false });
   renderAdminExams(data || []);
+  loadAdminResults();
 }
 
 function renderAdminExams(list) {
@@ -311,6 +312,193 @@ async function deleteQuestion(qId) {
   await loadExamQuestionsAdmin(currentExamId);
   loadAdminExams();
   toast('Pregunta eliminada.');
+}
+
+// ── ADMIN: RESULTADOS Y CORRECCIÓN ───────────────────────────
+let adminResultsCache = [];
+let currentResultId   = null;
+let reviewData        = { autoScore: 0, totalPts: 0, shortQIds: [] };
+
+async function loadAdminResults() {
+  const { data } = await db
+    .from('exam_results')
+    .select('*, students(full_name, dni), exams(title)')
+    .order('taken_at', { ascending: false })
+    .limit(200);
+  adminResultsCache = data || [];
+  renderAdminResults(adminResultsCache);
+}
+
+function renderAdminResults(list) {
+  const el = document.getElementById('adminResultsList');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = `<p style="color:var(--gray-500);font-size:14px;text-align:center;padding:32px">
+      Todavía no hay evaluaciones entregadas.
+    </p>`;
+    return;
+  }
+
+  const pending = list.filter(r => r.score === null);
+  const graded  = list.filter(r => r.score !== null);
+  const ordered = [...pending, ...graded];
+
+  let html = '';
+  if (pending.length) {
+    html += `<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;
+      padding:10px 16px;margin-bottom:16px;font-size:13px;color:#92400e">
+      <i class="fas fa-clock"></i>
+      <strong> ${pending.length} evaluación${pending.length > 1 ? 'es' : ''} pendiente${pending.length > 1 ? 's' : ''} de corrección</strong>
+    </div>`;
+  }
+
+  html += `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Alumno</th><th>Evaluación</th><th>Fecha</th><th>Nota</th><th>Estado</th><th></th>
+    </tr></thead>
+    <tbody>${ordered.map(r => {
+      const s   = r.score;
+      const cls = s === null ? 'score-mid' : s >= 7 ? 'score-high' : s >= 5 ? 'score-mid' : 'score-low';
+      const lbl = s === null ? 'Pendiente' : s >= 7 ? 'Aprobado' : s >= 5 ? 'Regular' : 'Desaprobado';
+      return `<tr>
+        <td>
+          <strong>${r.students?.full_name || '—'}</strong>
+          <br><span style="font-size:11px;color:var(--gray-500)">DNI: ${r.students?.dni || '—'}</span>
+        </td>
+        <td>${r.exams?.title || '—'}</td>
+        <td>${new Date(r.taken_at).toLocaleDateString('es-AR')}</td>
+        <td><strong>${s !== null ? s + '/10' : '—'}</strong></td>
+        <td><span class="score-badge ${cls}">${lbl}</span></td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="openReviewExam('${r.id}')">
+            <i class="fas fa-eye"></i> Ver
+          </button>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+
+  el.innerHTML = html;
+}
+
+async function openReviewExam(resultId) {
+  currentResultId = resultId;
+  const result = adminResultsCache.find(r => r.id === resultId);
+  if (!result) return;
+
+  const { data: questions } = await db
+    .from('exam_questions').select('*')
+    .eq('exam_id', result.exam_id).order('order_num');
+
+  const answers = result.answers
+    ? (typeof result.answers === 'string' ? JSON.parse(result.answers) : result.answers)
+    : {};
+
+  document.getElementById('reviewExamStudentName').textContent =
+    result.students?.full_name || '—';
+  document.getElementById('reviewExamTitle').textContent =
+    result.exams?.title || '—';
+  document.getElementById('reviewExamDate').textContent =
+    new Date(result.taken_at).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' });
+
+  let autoScore = 0, totalPts = 0;
+  const shortQIds = [];
+
+  const body = document.getElementById('reviewExamBody');
+  body.innerHTML = (questions || []).map((q, i) => {
+    const pts  = parseFloat(q.points) || 1;
+    totalPts  += pts;
+    const opts = q.options
+      ? (Array.isArray(q.options) ? q.options : JSON.parse(q.options || '[]'))
+      : [];
+    const studentAnswer = answers[q.id] || '';
+    let answersHtml = '';
+
+    if (q.type === 'multiple_choice' || q.type === 'true_false') {
+      const isCorrect = studentAnswer === q.correct_answer;
+      if (isCorrect) autoScore += pts;
+
+      answersHtml = opts.map(opt => {
+        const isStudent  = opt === studentAnswer;
+        const isCorrectO = opt === q.correct_answer;
+        let bg = 'var(--gray-100)', border = 'var(--gray-200)', color = 'var(--gray-700)';
+        if (isStudent && isCorrect)  { bg = '#d1fae5'; border = '#10b981'; color = '#065f46'; }
+        if (isStudent && !isCorrect) { bg = '#fee2e2'; border = '#ef4444'; color = '#991b1b'; }
+        if (!isStudent && isCorrectO){ bg = '#d1fae5'; border = '#10b981'; color = '#065f46'; }
+        const icon = isStudent ? (isCorrect ? '✓' : '✗') : (isCorrectO && !isStudent ? '✓' : '○');
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;
+          margin-bottom:4px;border:1.5px solid ${border};background:${bg};color:${color};font-size:13px">
+          <strong style="min-width:14px">${icon}</strong> ${opt}
+          ${!isStudent && isCorrectO ? '<span style="margin-left:auto;font-size:11px;font-weight:700">← Correcta</span>' : ''}
+        </div>`;
+      }).join('');
+      answersHtml += `<p style="font-size:12px;font-weight:700;margin-top:6px;color:${isCorrect ? 'var(--success)' : 'var(--danger)'}">
+        ${isCorrect ? `✓ Correcto — ${pts} punto${pts !== 1 ? 's' : ''}` : `✗ Incorrecto — 0 puntos`}
+      </p>`;
+
+    } else {
+      shortQIds.push(q.id);
+      answersHtml = `
+        <div style="background:var(--gray-100);border-left:3px solid var(--primary);
+          border-radius:0 8px 8px 0;padding:12px 14px;margin-bottom:10px">
+          <p style="font-size:11px;font-weight:700;color:var(--gray-500);margin-bottom:4px">RESPUESTA DEL ALUMNO</p>
+          ${studentAnswer
+            ? `<p style="font-size:14px;line-height:1.7;white-space:pre-line">${studentAnswer}</p>`
+            : '<p style="color:var(--gray-400);font-style:italic">Sin respuesta</p>'}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <label style="font-size:13px;font-weight:600;white-space:nowrap">Puntaje (0–${pts}):</label>
+          <input type="number" id="short_pts_${q.id}" class="form-control"
+            min="0" max="${pts}" step="0.5" value="0" style="width:80px"
+            oninput="recalcReviewScore()" />
+          <span style="font-size:12px;color:var(--gray-500)">de ${pts} punto${pts !== 1 ? 's' : ''}</span>
+        </div>`;
+    }
+
+    return `
+    <div style="background:white;border-radius:10px;padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow)">
+      <p style="font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;
+        letter-spacing:.04em;margin-bottom:6px">
+        Pregunta ${i + 1} &nbsp;·&nbsp; ${pts} punto${pts !== 1 ? 's' : ''}
+      </p>
+      <p style="font-size:15px;font-weight:600;margin-bottom:12px">${q.question_text}</p>
+      ${answersHtml}
+    </div>`;
+  }).join('');
+
+  reviewData = { autoScore, totalPts, shortQIds };
+  document.getElementById('reviewAutoScore').textContent = autoScore.toFixed(1);
+  document.getElementById('reviewTotalPts').textContent  = totalPts.toFixed(1);
+  document.getElementById('reviewShortAnswerNote').style.display = shortQIds.length ? 'block' : 'none';
+
+  recalcReviewScore();
+  openModal('modalReviewExam');
+}
+
+function recalcReviewScore() {
+  const { autoScore, totalPts, shortQIds } = reviewData;
+  let shortPts = 0;
+  shortQIds.forEach(qId => {
+    shortPts += parseFloat(document.getElementById(`short_pts_${qId}`)?.value) || 0;
+  });
+  const score = totalPts > 0
+    ? Math.min(10, parseFloat(((autoScore + shortPts) / totalPts * 10).toFixed(1)))
+    : 0;
+  document.getElementById('reviewFinalScore').value = score;
+}
+
+async function saveExamGrade() {
+  const score = parseFloat(document.getElementById('reviewFinalScore').value);
+  if (isNaN(score) || score < 0 || score > 10) {
+    toast('La nota debe estar entre 0 y 10.'); return;
+  }
+  const { error } = await db
+    .from('exam_results').update({ score }).eq('id', currentResultId);
+  if (error) { toast(`Error: ${error.message}`); return; }
+  closeModal('modalReviewExam');
+  await loadAdminResults();
+  if (typeof loadStudentExams === 'function') loadStudentExams();
+  toast('Nota guardada correctamente.');
 }
 
 // ── ADMIN: GENERACIÓN CON IA ──────────────────────────────────
