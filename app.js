@@ -95,6 +95,7 @@ async function doLogin() {
 
   currentUser = { ...data, is_admin: false };
   saveSession();
+  updateNav();
   closeModal('modalLogin');
   showPage('student');
   renderUnitsGrid('unitsGridStudent');
