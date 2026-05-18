@@ -8,6 +8,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ADMIN_DNI = '31639669';   // <-- cambiá por tu DNI real
 
 // ── WhatsApp / Telegram ───────────────────────────────────────
-// Número de WhatsApp del grupo de alumnos (con código de país, sin +)
 const WA_GROUP_LINK = 'https://chat.whatsapp.com/TU_LINK';
 const TG_GROUP_LINK = 'https://t.me/TU_GRUPO';
+
+// ── EmailJS ───────────────────────────────────────────────────
+// Creá tu cuenta gratis en emailjs.com y completá estos valores.
+// Guía: emailjs.com → Add New Service (Gmail) → Create Template → Account → API Keys
+const EMAILJS_SERVICE_ID  = 'TU_SERVICE_ID';    // ej: 'service_abc123'
+const EMAILJS_TEMPLATE_ID = 'TU_TEMPLATE_ID';   // ej: 'template_xyz789'
+const EMAILJS_PUBLIC_KEY  = 'TU_PUBLIC_KEY';    // ej: 'aBcDeFgHiJkLmNoP'

@@ -12,6 +12,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     :root {
       --primary: #1a56db;
@@ -524,6 +525,7 @@
               <th>Nombre completo</th>
               <th>Email</th>
               <th>DNI</th>
+              <th>Teléfono</th>
               <th>Registro</th>
               <th>Prom. exámenes</th>
             </tr>
@@ -588,7 +590,10 @@
           <label>Mensaje</label>
           <textarea class="form-control" id="notifMessage" rows="5" placeholder="Escribí el mensaje aquí..."></textarea>
         </div>
-        <button class="btn btn-primary" onclick="sendNotification()"><i class="fas fa-paper-plane"></i> Enviar</button>
+        <button class="btn btn-primary" id="btnSendNotif" onclick="sendNotification()">
+          <i class="fas fa-paper-plane"></i> Enviar
+        </button>
+        <div id="notifStatus" style="margin-top:14px;font-size:13px"></div>
       </div>
     </div>
   </div>
@@ -640,6 +645,11 @@
         <label>DNI</label>
         <input class="form-control" id="regDni" type="text" placeholder="Sin puntos ni espacios" />
         <p class="form-hint">Tu DNI será tu usuario y contraseña de acceso.</p>
+      </div>
+      <div class="form-group">
+        <label>Teléfono <span style="font-weight:400;color:var(--gray-500)">(opcional — para notificaciones por WhatsApp)</span></label>
+        <input class="form-control" id="regPhone" type="tel" placeholder="Ej: 3515001234 (sin 0 ni 15)" />
+        <p class="form-hint">Código de área + número, sin espacios. Ej: 3515001234</p>
       </div>
       <button class="btn btn-primary" style="width:100%" onclick="doRegister()">
         <i class="fas fa-user-plus"></i> Registrarse

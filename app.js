@@ -105,34 +105,32 @@ async function doRegister() {
   const name  = document.getElementById('regName').value.trim();
   const email = document.getElementById('regEmail').value.trim();
   const dni   = document.getElementById('regDni').value.trim();
+  const phone = document.getElementById('regPhone')?.value.trim() || '';
 
   if (!name || !email || !dni) {
-    showAlert('registerAlert', 'Completá todos los campos.', 'danger'); return;
+    showAlert('registerAlert', 'Completá nombre, email y DNI.', 'danger'); return;
   }
   if (!/^\d{7,8}$/.test(dni)) {
     showAlert('registerAlert', 'El DNI debe tener 7 u 8 dígitos numéricos.', 'danger'); return;
   }
 
-  // Check duplicate
   const { data: existing } = await db.from('students').select('id').eq('dni', dni).single();
   if (existing) {
     showAlert('registerAlert', 'Ese DNI ya está registrado. Podés iniciar sesión.', 'danger'); return;
   }
 
-  const { data, error } = await db
+  const { error } = await db
     .from('students')
-    .insert([{ full_name: name, email, dni, created_at: new Date().toISOString() }])
-    .select()
-    .single();
+    .insert([{ full_name: name, email, dni, phone: phone || null, created_at: new Date().toISOString() }]);
 
   if (error) {
     showAlert('registerAlert', 'Error al registrar. Intentá de nuevo.', 'danger'); return;
   }
 
   showAlert('registerAlert', '¡Cuenta creada! Ya podés iniciar sesión con tu DNI.', 'success');
-  document.getElementById('regName').value = '';
-  document.getElementById('regEmail').value = '';
-  document.getElementById('regDni').value = '';
+  ['regName','regEmail','regDni','regPhone'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
 }
 
 function logout() {
@@ -399,6 +397,10 @@ async function loadAdminData() {
         <td><strong>${s.full_name}</strong></td>
         <td>${s.email}</td>
         <td>${s.dni}</td>
+        <td>${s.phone
+          ? `<a href="https://wa.me/54${s.phone.replace(/\D/g,'')}" target="_blank" style="color:var(--success);text-decoration:none" title="Abrir WhatsApp">
+              <i class="fab fa-whatsapp"></i> ${s.phone}</a>`
+          : '<span style="color:#9ca3af">—</span>'}</td>
         <td>${new Date(s.created_at).toLocaleDateString('es-AR')}</td>
         <td>${scores.length ? `<span class="score-badge ${cls}">${avg}</span>` : '<span style="color:#9ca3af">Sin evaluaciones</span>'}</td>
       </tr>`;
@@ -408,7 +410,7 @@ async function loadAdminData() {
   // Notif student selector
   const sel = document.getElementById('notifStudent');
   sel.innerHTML = list.map(s =>
-    `<option value="${s.email}" data-wa="${s.phone || ''}">${s.full_name}</option>`
+    `<option value="${s.email}" data-phone="${s.phone || ''}" data-name="${s.full_name}">${s.full_name}</option>`
   ).join('');
 }
 
@@ -581,38 +583,114 @@ async function deleteUnit() {
 }
 
 // ── NOTIFICATIONS ─────────────────────────────────────────────
-function sendNotification() {
-  const target   = document.getElementById('notifTarget').value;
-  const channel  = document.getElementById('notifChannel').value;
-  const subject  = document.getElementById('notifSubject').value.trim();
-  const message  = document.getElementById('notifMessage').value.trim();
+async function sendNotification() {
+  const target  = document.getElementById('notifTarget').value;
+  const channel = document.getElementById('notifChannel').value;
+  const subject = document.getElementById('notifSubject').value.trim();
+  const message = document.getElementById('notifMessage').value.trim();
+  const statusEl = document.getElementById('notifStatus');
 
   if (!subject || !message) { toast('Completá asunto y mensaje.'); return; }
 
+  // ── EMAIL con EmailJS ──────────────────────────────────────
   if (channel === 'email') {
-    let to = '';
-    if (target === 'all') {
-      // Open mailto with all emails (comma-separated from table)
-      const rows = document.querySelectorAll('#studentsBody tr td:nth-child(2)');
-      to = Array.from(rows).map(td => td.textContent).join(',');
-    } else {
-      to = document.getElementById('notifStudent').value;
+    if (!EMAILJS_PUBLIC_KEY || EMAILJS_PUBLIC_KEY === 'TU_PUBLIC_KEY') {
+      statusEl.innerHTML = `<div class="alert alert-danger">
+        <strong>EmailJS no configurado.</strong> Completá las credenciales en <code>config.js</code>.
+        <a href="https://www.emailjs.com" target="_blank" style="color:inherit;font-weight:600;margin-left:6px">Crear cuenta gratis →</a>
+      </div>`;
+      return;
     }
-    window.open(`mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`);
 
-  } else if (channel === 'whatsapp') {
+    let recipients = [];
+    if (target === 'all') {
+      const { data } = await db.from('students').select('full_name, email');
+      recipients = data || [];
+    } else {
+      const sel = document.getElementById('notifStudent');
+      const opt = sel.options[sel.selectedIndex];
+      recipients = [{ full_name: opt.dataset.name, email: opt.value }];
+    }
+
+    if (!recipients.length) { toast('No hay alumnos registrados.'); return; }
+
+    const btn = document.getElementById('btnSendNotif');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Enviando…';
+    statusEl.innerHTML = `<div class="alert alert-info">Enviando a ${recipients.length} destinatario${recipients.length > 1 ? 's' : ''}… <span id="notifCounter">0/${recipients.length}</span></div>`;
+
+    let sent = 0, failed = 0;
+    for (const r of recipients) {
+      try {
+        await emailjs.send(
+          EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID,
+          {
+            to_name:   r.full_name,
+            to_email:  r.email,
+            subject,
+            message,
+            from_name: 'Ing. Germán Golder — Electrotecnia',
+          },
+          EMAILJS_PUBLIC_KEY
+        );
+        sent++;
+      } catch (e) {
+        failed++;
+        console.error(`Error enviando a ${r.email}:`, e);
+      }
+      const counter = document.getElementById('notifCounter');
+      if (counter) counter.textContent = `${sent + failed}/${recipients.length}`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar';
+
+    if (failed === 0) {
+      statusEl.innerHTML = `<div class="alert alert-success">
+        <i class="fas fa-check-circle"></i> ${sent} email${sent > 1 ? 's' : ''} enviado${sent > 1 ? 's' : ''} correctamente.
+      </div>`;
+    } else {
+      statusEl.innerHTML = `<div class="alert alert-danger">
+        <i class="fas fa-exclamation-circle"></i> ${sent} enviado${sent > 1 ? 's' : ''}, ${failed} fallido${failed > 1 ? 's' : ''}.
+        Verificá las credenciales de EmailJS.
+      </div>`;
+    }
+    return;
+  }
+
+  // ── WHATSAPP ───────────────────────────────────────────────
+  if (channel === 'whatsapp') {
     const text = `*${subject}*\n\n${message}`;
     if (target === 'all') {
+      // Copiar mensaje al portapapeles + abrir grupo
+      try { await navigator.clipboard.writeText(text); } catch (_) {}
       window.open(WA_GROUP_LINK);
-      toast('Se abrió el grupo de WhatsApp. Pegá el mensaje manualmente.');
+      statusEl.innerHTML = `<div class="alert alert-success">
+        <i class="fab fa-whatsapp"></i> Mensaje copiado al portapapeles. Pegalo en el grupo de WhatsApp.
+      </div>`;
     } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`);
+      const sel  = document.getElementById('notifStudent');
+      const opt  = sel.options[sel.selectedIndex];
+      const phone = (opt.dataset.phone || '').replace(/\D/g, '');
+      const url  = phone
+        ? `https://wa.me/54${phone}?text=${encodeURIComponent(text)}`
+        : `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(url);
+      statusEl.innerHTML = phone
+        ? `<div class="alert alert-success"><i class="fab fa-whatsapp"></i> Se abrió WhatsApp con ${opt.dataset.name}.</div>`
+        : `<div class="alert alert-info"><i class="fab fa-whatsapp"></i> Sin número registrado — seleccioná el contacto manualmente en WhatsApp.</div>`;
     }
+    return;
+  }
 
-  } else if (channel === 'telegram') {
+  // ── TELEGRAM ───────────────────────────────────────────────
+  if (channel === 'telegram') {
     if (target === 'all') {
+      try { await navigator.clipboard.writeText(`${subject}\n\n${message}`); } catch (_) {}
       window.open(TG_GROUP_LINK);
-      toast('Se abrió el grupo de Telegram. Enviá el mensaje manualmente.');
+      statusEl.innerHTML = `<div class="alert alert-success">
+        <i class="fab fa-telegram"></i> Mensaje copiado. Pegalo en el grupo de Telegram.
+      </div>`;
     } else {
       window.open(`https://t.me/share/url?text=${encodeURIComponent(subject + '\n\n' + message)}`);
     }
